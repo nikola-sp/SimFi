@@ -1,0 +1,944 @@
+From Input Private to Universally Composable
+Secure Multiparty Computation Primitives
+Dan Bogdanov∗
+dan@cyber.ee
+Peeter Laud∗
+peeter@cyber.ee
+Sven Laur †
+swen@ut.ee
+Pille Pullonen∗†
+pille.pullonen@cyber.ee
+March 17, 2014
+Abstract
+Secure multiparty computation systems are commonly built form a small set of primitive
+components. Composability of security notions has a central role in the analysis of such sys-
+tems, since it allows us to deduce security properties of complex protocols from the properties
+of its components. We show that the standard notions of universally composable security are
+overly restrictive in this context and can lead to protocols with sub-optimal performance. As
+a remedy, we introduce a weaker notion of privacy that is satisfied by simpler protocols and is
+preserved by composition. After that we fix a passive security model and show how to convert
+a private protocol into a universally composable protocol. As a result, we obtain modular
+security proofs without performance penalties.
+1 Introduction
+Secure multiparty computation is a tool for privacy preserving collaborative computation. In gen-
+eral, the desired functionality is represented by either a boolean or arithmetic circuit and jointly
+evaluated. In this context, it is not sufficient to prove that individual protocols for gate operations
+leak nothing beyond desired outputs. We must additionally require composability meaning that
+these protocols should remain secure independently of the context in which it is executed. There
+have been different formalisations of composable security proofs: universal composability [1], reac-
+tive simulatability [2], abstract cryptography [3] and inexhaustible interactive Turing machines [4].
+In this work we use reactive simulatability (RSIM) for the asynchronous communication [5, 6] due
+to the precision it offers us in modelling the adversarial network activities. Overview of RSIM
+framework is given in Sec. 2.
+In this paper, we define privacy for the RSIM framework and show that such definition is
+composable. In addition, we define a restricted version of composition where some composed
+systems can only have one-way communication. Such a structure is natural for arithmetic and
+boolean circuits where the data dependency between the operations is acyclic. Finally, we show
+that a restricted composition of a private and a secure protocol, where all outputs of a protocol
+come from the secure protocol, is secure in the passive model. The exact set of conditions that are
+needed to achieve security in the active model is out of our scope.
+There are different means of achieving secure computation, but we focus on computing on secret
+shared data [7, 8, 9]. Trivially privacy means that all of the secret inputs of the parties remain
+private and only information revealed about them is the computation output. For shared data
+this implies that also the shares of honest parties remain private. We give the precise security
+definitions in Sec. 3.
+The initial idea for our composition of private and secure protocols as well as the main example
+result from the Sharemind secure multiparty computation framework [7, 10]. The most up to
+∗Cybernetica AS
+†University of Tartu, Institute of Computer Science
+HMˆ
+M1
+M2
+. . .
+A
+iniouti in1out1
+in2out2
+net1
+out1,Sys
+in1,Sys
+out2,Sys
+in2,Sys
+outi,Sys
+ini,Sys
+netj,Sys
+S
+S
+Figure 1: Canonical interface between adversary, hon-
+est user and system
+date version of this approach can be found in [11]. However, current treatment is more general
+and more rigorous than the original exposition. This technique has also been used for obtaining
+other efficient secure multiparty computation protocols that are introduced in Sec. 3.3. However,
+previously the security of each protocol obtained in this manner had to be proven separately. Our
+work establishes a framework for analogous protocol compositions.
+2 Reactive Simulatability
+2.1 Interaction model for asynchronous reactive systems
+This section gives only a high-level overview of the RSIM framework and exposes only the details
+that are necessary to understand our main results. Further details and detailed discussions be
+found in the original papers [5, 6]. In this model, different parties are described by machines that
+are connected through ports and each connection is actually a buffer that may be under adversarial
+control. Reactive means that the user and system can interact multiple times and asynchronous
+means that all communication channels are asynchronous and an adversary can control their timing.
+Each party in the framework is modelled as a machine specified by tuple (Name, Ports, States, σ, Ini, F in).
+A string Name is the name of the machine, Ports is a sequence of ports of that machine, States is
+a set of states, σ is a probabilistic state transition function, Ini and Fin are the sets of initial and
+final states. We sometimes write ports(Mˆ) to stress that they belong to the set Mˆ or machines.
+Data transfer from one machine to another goes through a buffer that connects an output port
+p! with and input port p?. A buffer is a dedicated machine that has exactly three ports: clock-in
+port, buffer in-port and buffer out-port. Each state transition in the system either appends or
+retrieves an element from a buffer. Ports are named after the buffer they are connected to. A
+question mark after the port name denotes input ports and the exclamation mark output ports.
+A shorthand pc denotes a port that is complementary to p. On figures, we use labelled arrows to
+denote buffers and ports. Buffer clocking channels are denoted as dashed lines where the name
+corresponds to the name of the buffer.
+As an illustrative example consider the most common setting in the RSIM framework depicted
+on Fig. 1. In this configuration, a complex system Sys comprising of several subsystems and
+parties is under the influence of an adversary A and an environment H, which uses Sys to obtain
+an output. All machines except for H are assumed to have input and output buffers denoted by
+properly indexed in and out symbols. As the system can be a collection of machines we use double
+indexing. In addition, there is a buffer for each network connection j defined for the machines in
+the system. Double indexing of buffers is necessary for differentiating between analogous buffers
+in protocol composition. Finally, the adversary A schedules all buffers on figure Fig. 1.
+The execution of machines is controlled by clocking and inputs. A machine is clocked when
+it receives an input. The corresponding machine uses the state transition function to determine
+the next state and write some outputs to output buffers. A machine can clock at most one of the
+output buffers by sending an input to a clock-in port of the buffer. Upon a clocking input the buffer
+releases the desired value and the recipient of the value is clocked. If no machine is scheduled then
+the control goes to the adversary. The execution ends when the adversary reaches a final state.
+A collection is a finite set of machines. A collection is closed if the only free port is the master
+clock-in port. Given a closed collection C with a master scheduler X, a run of this collection is
+a sequence of steps (N, cin, vin, S, ((c1, v1), . . . , (cn, vn)), cclk), where N is the name of the machine
+that made the step after receiving the input vin from an input port cin?, going to state S, writing
+vi to output port ci! and possibly clocking the channel cclk (which may also be ⊥). For a collection
+Mˆ , a completion [Mˆ ] is Mˆ together with all of the buffers connected to its ports except the master
+clock port. The main use of a completion is that often the collections are defined as sets of simple
+machines as these are the main objects to work with, but occasionally we need to specify that all
+the buffers are included.
+A structure (Mˆ, S) is collection of machines Mˆ together with a set of ports S ⊆ free(Mˆ).
+Denote S = free(Mˆ)\S. Ports in S are for communicating with the environment H and ports in
+S are for communicating with the adversary A. We emphasise that H cannot have ports matching
+with S and ports used to send messages between machines of Mˆ . We denote these forbidden ports
+by forb(Mˆ, S).
+A system Sys is defined as a set of structures. In cryptography these structures commonly
+correspond to different sets of statically corrupted parties. However, in this work we only consider
+adaptive corruption which is modelled by systems with exactly one structure and machines that
+accept corruption requests during their work. In the following we simplify the original theory for
+the cases where Sys = (Mˆ, S).
+Definition 1 (Composition). Structures (Mˆ1, S1), . . . , (Mˆn, Sn) are composable if they have
+compatible port layouts: ports(Mˆi)∩ forb(Mˆj , Sj) = ∅ and Si ∩ free([Mˆj ])c = Scj ∩ free([Mˆi]) for
+all j 6= j. Their composition is defined as (Mˆ, S) = (Mˆ1, S1)|| . . . ||(Mˆn, Sn) with Mˆ = Mˆ1∪. . .∪Mˆn
+and S = (S1 ∪ . . . ∪ Sn) ∩ free([Mˆ ]).
+A configuration of a system is a tuple (Mˆ, S,H,A) where H is a simple machine without
+forbidden ports forb(Mˆ, S) and the collection Mˆ,H,A is closed with A being the master scheduler.
+We use a shorthand Conf(Sys) to denote the set of all configurations.
+2.2 Security definitions
+Security in the RSIM framework is defined by contrasting two systems Sys1 and Sys2 where Sys2
+is the system that is known to be secure and Sys1 is the system we want to use. Both systems
+must have the same interface S to the environment H and there must exist a way to convert a
+valid adversary A1 against (Mˆ1, S) ∈ Sys1 to a comparable adversary against (Mˆ2, S) ∈ Sys2.
+For each machine M when it is scheduled we store (sM , IM ), (s
+′
+M , OM ) as pairs of the initial
+state and input and the resulting state and output to the run. A view of a set of parties Mˆ ⊆ C
+is a subset of a run that corresponds to the steps relating to machines in Mˆ as is denoted by
+view(Mˆ). Note that the view does not contain port names and therefore we are allowed to rename
+ports and buffers when composing systems.
+Definition 2 (Simulatability). Let systems Sys1 and Sys2 be given. We say that Sys1 is per-
+fectly as secure as Sys2 (Sys1 ≥perfsec Sys2) if for every configuration conf1 = (Mˆ1, S,H,A1) ∈
+Conf(Sys1) where ports(H)∩forb(Mˆ2, S) = ∅ there exists a configuration conf2 = (Mˆ2, S,H,A2) ∈
+Conf(Sys2) such that viewconf1(H) = viewconf2(H).
+We can give analogous definitions for statistical security (Sys1 ≥smallsec Sys2) if all polynomial
+size views of H are statistically indistinguishable and computational security (Sys1 ≥polysec Sys2) if
+we require computational indistinguishability of the views and polynomial configurations. More-
+over, as secure as relation is transitive. We can also define simulatability for restricted classes of
+machines.
+Black-box simulatability means that A2 = Sim ∪ A1 must be the combination of a simulator
+machine Sim and the adversary A1. Two machines are combined simply by taking the union of
+their ports and transition functions, and the cartesian product of their sets of states. The simulator
+Sim depends only on Mˆ and S.
+Definition 3 (Simulatability for a class of adversaries). Let systems Sys1 and Sys2 be given. We
+say that Sys1 is perfectly as secure as Sys2 for class A adversaries (Sys1 ≥perf,Asec Sys2) if for every
+configuration conf1 = (Mˆ1, S,H,A1) ∈ Conf(Sys1) where A1 ∈ A and ports(H)∩ forb(Mˆ2, S) =
+∅ there exists a configuration conf2 = (Mˆ2, S,H,A2) ∈ Conf(Sys2) with A2 ∈ A such that
+viewconf1(H) = viewconf2(H).
+The main result of RSIM is the security of composition of secure systems. The restatement of
+this theorem is the following.
+Theorem 1 (Secure two-system composition). Assume that we have systems Sys1, Sys
+′
+1 and Sys2
+and such that Sys1 ≥ Sys′1. For structure (Mˆ3, S) = (Mˆ1, S1)||(Mˆ2, S2) and (M ′1, S1) = f1(Mˆ1, S1)
+the composition (Mˆ ′1, S1)||(Mˆ2, S2) = (Mˆ4, S) exists and satisfies ports(Mˆ ′1)∩Sc2 = ports(Mˆ1)∩Sc2.
+Then we have Sys3 ≥sec Sys4.
+Note that the theorem holds for statistical, perfect and computational security as well as uni-
+versal and black-box simulatability. We use these definitions and the main theorem to add privacy
+notion to this formalisation. The composition theorem also holds for the restricted classes of
+simulatability.
+2.3 Security proofs for passive security
+Proving that a system is secure requires defining a simulator or several simulators that unify
+adversaries views on the ideal and real world. An important implication of unified views is that the
+simulation output has to agree with the output of the ideal party. An ideal system should provide
+abstract interfaces, but should also specify all weaknesses or imperfections of the system. For
+example, if something is leaked in the protocol then it should be leaked by the ideal functionality.
+We assume that in case of a passive adversary, the adversary can behave as an observer, but
+can not modify the behaviour of corrupted parties. In the context of Fig. 1, we assume that the
+only message A can send on ini,Sys is (corrupt) to corrupt party i for system Sys. Afterwards each
+time the machine Mi is clocked it writes its view to outi,Sys where the adversary can see this.
+Otherwise the corrupted machines follow the protocol as the honest machines and A can not affect
+their behaviour.
+Hence, the security proof for a passive adversary requires a simulator that can simulate the
+view of the corrupted parties and the network scheduling. In addition, the joint view of the user
+and the adversary has to be consistent. Commonly this means that the simulator has to ensure
+that the view of the corrupted parties is such that it computes the same output value as defined
+by the corresponding ideal functionality.
+3 Secure multiparty computation
+We consider secure-multiparty computation based on secret shared data. Thus, all secret inputs
+are distributed between the computing parties who collaboratively compute the outputs. The
+inputs and outputs of the computation can either be plain or secret shared values. A plain value
+is denoted by x and a shared value by [[x]] where xi denotes the share of party CPi.
+3.1 Arithmetic black box
+In general the parties compute some functionality f so that each party CPi has input xi and output
+yi as (y1, . . . , yn) = f(x1, . . . , xn). The function f can be expressed as an arithmetic circuit and
+we require secure protocols for the arithmetic primitives in order to compute f securely. Hence,
+in practice we need some controller application that can start and direct the computations as well
+as the arithmetic black box (ABB) for the computations.
+The ABB was first specified in [12] with the idea that it is a computer where the majority of the
+parties has to agree on the functionality that is computed. The ABB defines an ideal functionality
+FABB. All parties can input their private inputs for some label `x and afterwards parties can
+cause the computations to be performed by specifying the operand labels and the operations.
+FABB performs computations if all or majority of the parties give the same command. The FABB
+only outputs published values. Thus FABB is a monolithic ideal functionality, similar to the
+Algorithm 1 Resharing protocol [[w]]← Reshare([[u]]).
+Data Shared value [[u]].
+ResultShared value [[w]] such that w = u, all shares wi are uniformly distributed and ui and wj
+are independent for i, j = 1, 2, 3.
+CP1 generates an uniformly distributed r12 ← Z2n .
+CP2 generates an uniformly distributed r23 ← Z2n .
+CP3 generates an uniformly distributed r31 ← Z2n .
+All values rij are sent from CPi to CPj .
+CP1 computes w1 ← u1 + r12 − r31.
+CP2 computes w2 ← u2 + r23 − r12.
+CP3 computes w3 ← u3 + r31 − r23.
+return [[w]].
+celebrated UC cryptographic library [13], and contrasting with smaller, “lower-level” composable
+ideal functionalities (e.g. [14, 15, 16]), where the inputs and outputs of operations, represented as
+bit-strings, are exposed at the interface of the functionality.
+3.2 Lightweight functionalities
+We are interested in having lower-level functionalities for secure multiparty computation, where
+the ideal functionality can also use shares as inputs and outputs. The ideal functionality of a secure
+multiparty computation primitive [[y]] = ⊗([[x1]], . . . , [[xn]]) takes as inputs the shares of x1, . . . , xn
+and returns uniformly randomly chosen shares of y (if some of x1, . . . , xn and y are public, then
+plain values are input or output instead).
+The ideal functionality also accepts corruption requests from the adversary and releases the
+inputs of the corrupted parties to the adversary. In case of secure protocols also the outputs of the
+corrupted parties are given to the adversary. On the other hand, private ideal functionalities do
+not release the outputs to the adversary. As usually, a protocol is secure if it is as secure as the
+corresponding ideal functionality.
+The corresponding real functionality defines a machine M⊗i for each party CPi, based on
+the protocol description. The machines are connected to each other with secure, authenticated
+channels, the messages on which the adversary cannot see or modify. Still, the adversary can
+fix the timings of these channels. Additionally, the machines allow passive corruption and the
+corrupted machines send all of their view to the adversary. For this purpose, each machine M⊗i
+can receive a corruption request on the input port ini,Sys?, and will afterwards output the elements
+of its view to the port outi,Sys!. The channels ini,Sys and outi,Sys are clocked by the adversary.
+Each system has this one structure, as commonly used for adaptive corruption in RSIM. We
+can use this setup to model the static corruption so that each structure has to receive a corruption
+request or a notification that no-one is corrupted before it starts. All machines notify the adversary
+about their outputs when they are computed as (output, `x) where `x is the label of the output.
+We assume that the state s recorded in the view of the machine contains all computed outputs as
+(output, x, `x) and possibly other parts of the previous protocol run. When receiving the corruption
+request the corresponding machine sends its current state s to A. In the following, each time it is
+clocked it sends its corresponding view (si, I), (so, O) to the adversary. The adversary can learn
+all the previous outputs because they are contained in s.
+Note that according to this definition, the addition protocols in most ABBs are insecure. The
+employed sharings are usually additively homomorphic [12, 7] and the real functionality just con-
+sists of each party’s machine adding up the shares by itself. This does not produce uniformly
+random shares.
+3.3 Efficient composed protocols
+Consider a three-party secure computation that is based on additive secret sharing as in Sharemind.
+We have three participants CP1, CP2, CP3 and each secret value v is distributed as shares v1, v2, v3
+where v = v1 + v2 + v3 mod 2
+n. Beside arithmetic operations we have Reshare() protocol in
+Algorithm 1 that for a shared input value [[v]] outputs a uniformly random sharing [[w]] of w = v.
+Algorithm 2 Sharemind protocol for secure multiplication
+Data CP1, CP2, CP3 hold shared values [[u]] and [[v]].
+Result CP1, CP2, CP3 hold a shared value [[w]] = [[u]][[v]].
+[[u′]]← Reshare([[u]])
+[[v′]]← Reshare([[v]])
+CP1 sends u′1 and v′1 to CP2.
+CP2 sends u′2 and v′2 to CP3.
+CP3 sends u′3 and v′3 to CP1.
+CP1 computes w′1 ← u′1v′1 + u′1v′3 + u′3v′1.
+CP2 computes w′2 ← u′2v′2 + u′2v′1 + u′1v′2.
+CP3 computes w′3 ← u′3v′3 + u′3v′2 + u′2v′3.
+return [[w]]← Reshare([[w′]]).
+Sharemind’s secure multiplication protocol [11] is given in Algorithm 2. We can consider this
+protocol as a composition of Reshare() and other computations. The protocol is secure according
+to Def. 2.
+We can consider the multiplication protocol without the last line, so that the output is [[w′]].
+However, in this case it is not secure. But composing it with other protocols may give secure
+protocols. E.g., it’s possible to show that in computing ([[t]]·[[u]])·[[v]], only the second multiplication
+needs Reshare() at the end. Even more strikingly, when computing the inner product of two
+vectors, it is sufficient to perform a Reshare() at the very end of the computation, not after each
+multiplication. The performance gain of this approach is illustrated by the performance of Carter-
+Wegman hash construction in [17]. Their implementation of the optimised construction proved to
+be twice as fast as the straightforward composition of secure protocols. Very similar idea is also
+used for obtaining efficient inner product for Shamir secret sharing in [18].
+4 Input privacy
+Analogously to the simulatabilty definition in RSIM we need to define privacy as used in secure
+multiparty computation. For private protocols we also have to consider correctness of the protocol
+corresponding to the ideal functionality.
+4.1 Privacy definition
+Consider an honest user H that is a composition of two machines H = H ′ ∪H⊥ where only H ′ is
+allowed to communicate with A and only H⊥ sees the outputs of the protocols. An illustration of
+this can be found on Fig. 2 where arrows show the direction of communication and lines illustrate
+a possible two-way communication. A privacy configuration is a configuration confp = (Mˆ, S,H
+′∪
+H⊥, A).
+H ′
+Mˆ
+H⊥
+A
+Figure 2: Privacy configuration with two distinct parts
+for honest user H
+Definition 4 (Input privacy). Let Sys1 = (Mˆ1, S) and Sys2 = (Mˆ2, S) be given. We say that
+Sys1 ≥perfpriv Sys2 (perfectly at least as input private as) if for every privacy configuration conf1 =
+(Mˆ1, S,H
+′ ∪ H⊥, A1) ∈ Conf(Sys1) where ports(H) ∩ forb(Mˆ2, S) = ∅ there exists a privacy
+configuration conf2 = (Mˆ2, S,H
+′ ∪H⊥, A2) ∈ Conf(Sys2) with the same H ′ ∪H⊥ such that
+viewconf1(H
+′) = viewconf2(H
+′) .
+We can give analogous definitions for statistical and computational simulation of the communi-
+cation where the output of A1 and A2 has to be indistinguishable. In simple words we require that
+the adversary has the same view in different protocol runs. In addition, we can give this definition
+for restricted classes of adversaries analogously to Def. 3. We say that a protocol is black-box
+private if A2 is the combination of a simulator Sim and the adversary A1, where Sim depends only
+on Mˆ1, S and ports(A1). In the following, we are only interested in the black-box case.
+We show later in Theorem 6 that the privacy definition is composable in a sense that a compo-
+sition of several private systems is as private as the corresponding monolithic ideal functionality.
+Clearly, for all systems Sys1 and Sys0 the relation Sys1 ≥fsec Sys0 implies Sys1 ≥fpriv Sys0.
+Hence, if a system is as secure as another system, then it is also as private as the other system. In
+full privacy proof we have to specify an ideal functionality that corresponds to our protocol and
+prove that our protocol is as private as the ideal functionality.
+In addition, a trivial composition result about independent composition holds. The composition
+of two systems Sys0 and Sys1 that do not have any connections is private if both systems are
+private. Namely, for both of them we can define a suitable privacy configuration by including the
+other system in H ′.
+4.2 Ideal functionality
+A protocol is said to be private if it is as private as a corresponding ideal functionality. The ideal
+functionality for the private systems is defined analogously to common ideal functionalities except
+that it does not give outputs to the adversary. Let us define when a structure Sys = (Mˆ, S) can
+be considered to be an ideal functionality. Our lightweight ideal functionalities from Sec. 3.2 will
+satisfy this definition.
+Definition 5 (Ideal functionality). A structure Sys = (Mˆ, S) is an ideal functionality for n parties,
+if the following holds.
+1. Mˆ consists of a single machine I.
+2. The ports in S have been partitioned to S1∪· · ·∪Sn, where Si contains the input and output
+ports for providing the functionality to the i-th party.
+3. The machine I has the ports in S, as well as the ports inI? and outI ! to communicate with
+the adversary. It clocks the channel outI . There are no channels from I to I.
+4. I expects exactly one input at each input port in S (i.e. it will ignore any subsequent inputs).
+In the course of its work, it will write exactly once to each of the output ports in S. All
+outputs are produced when all inputs necessary for computing them have been received.
+5. On input (corrupt, i) from inI?, it will write the inputs it has so far received from the i-th
+party (from the input ports in Si) to outI ! and clock that channel. Subsequently, it forwards
+any input from the input ports in Si to outI ! and clocks that channel.
+6. It will not react to any other commands from inI?, nor write anything else to outI !.
+7. The commands from inI? do not affect the input-output behaviour of I, restricted to the
+ports in S.
+This gives a hint about why we call it privacy. Clearly, all that the adversary sees in the
+ideal world are the inputs of the corrupted party. Thus, if its outputs in the real and the ideal
+world coincide, then it means that the output of the adversary is not interestingly affected by the
+messages seen in the real world. Hence, the real world is private because what the corrupted party
+sees does not depend on the inputs of the other parties.
+As an ideal functionality Sys = ({I}, S) is uniquely determined by the machine I, we will, by
+slight abuse of notation, identify them with each other in the rest of this paper.
+In addition, note that the secure ideal functionality described in Sec. 3.2 is specified analogously,
+except that in point 5 of Def. 5 it also sends all outputs of party CPi out from outI !.
+5 Composition
+In this section we define a restricted version of composition that is sufficient for composing arith-
+metic circuits. In addition, we specify a way to obtain ideal functionality for the composed circuits
+from the ideal functionalities of the composed systems.
+5.1 Ordered composition
+For a more straightforward representation of an arithmetic circuit as a composition of protocols
+we define ordered composition that restricts data dependency of the composed protocols. Namely,
+we assume that the first system can give inputs to the second, but not vice versa. In addition, this
+definition reduces the complexity of the proofs of the following composition theorems.
+Definition 6 (Ordered composition of two systems). The ordered composition of two structures
+Sys1 = (M1, S1) and Sys2 = (M2, S2) is defined if
+(i) they are composable meaning ports(M1) ∩ forb(M2, S2) = ∅, ports(M2) ∩ forb(M1, S1) = ∅
+and Sc1 ∩ free([M2]) = S2 ∩ free([M1])c, and
+(ii) the data flow is restricted to be in one direction only as ∀p, q ∈ S1 ∩ free([M2])c : dir(p) =
+dir(q).
+We say that the order is Sys1 → Sys2 if ∀p ∈ S1 ∩ free([M2])c : dir(p) =! meaning that the data
+flow is from M1 to M2.
+We say that they are fully ordered, if S1∩free([M2])c = {p : p ∈ S1∧dir(p) =!} all the outputs
+of M1 go to M2.
+Note that machines in ordered composition can work either sequentially or in parallel and the
+only thing limited by this definition is the data dependency. Machines that are not connected
+directly or through other machines in the system can trivially be said to be in ordered but not
+fully ordered composition.
+Moreover, ordered composition is sufficient for arithmetic circuits because the circuit is acyclic.
+We can topologically sort the circuit and define an ordering of the system based on that.
+5.2 Composition of ideal functionalities
+We note that the composition of ideal functionalities is no longer an ideal functionality, because it
+consists of several machines and has a wrong set of ports. We will thus define a separate notion of
+what it means to compose ideal functionalities. This notion will also be ordered.
+Definition 7 (Ideal composition of ideal functionalities). Let Sys1 = ({I1}, S1) and Sys2 =
+({I2}, S2) be two ideal functionalities for n parties, such that Sys1 → Sys2 is definable. Let inIj?
+and outIj ! be the ports that Ij uses for communicating with the adversary. Let S1 = S1i ∪ S1o
+[resp. S2 = S2i ∪ S2o] be the partition on S1 [resp. S2] to input and output ports. The ideal
+composition of Sys1 and Sys2 is the ideal functionality Sys = (I, S), where
+• S = S1i ∪ (S2i\Sc1o) ∪ S2o ∪ (S1o\Sc2i);
+• the partition of the ports in S among n parties follows from the partitioning of S1 and S2:
+Si = (Si1 ∪ Si2) ∩ S;
+• machine I has the ports in S, as well as the ports inI? and outI ! to communicate with the
+adversary;
+• machine I executes by waiting for input on all input ports in S, then runs I1 and I2, and
+writes the output to output ports in S;
+• on input (corrupt, i) from inI , machine I will behave as required in Def. 5 for the ports in Si
+defined for party CPi only.
+IH
+I1
+Filter A
+I2
+Figure 3: Composition for the ideal functionality
+As a shorthand we denote this resulting machine by I1|I2. We see that the ideal composition of
+ideal functionalities Sys1 and Sys2 behaves as “normal” composition, except that the intermediate
+results of the computation that I1 sends to I2 are not sent to the adversary, even if certain parties
+are corrupted. This corresponds to our intuition of ideal functionalities for secure multiparty
+composition.
+Lemma 1. The machine I = I1|I2 can be obtained from I1 and I2 with a filter Filter where the
+filter is uniquely determined by the composition.
+Proof. This is trivial as the output behaviour on outI and inI is defined based on the set S of
+ports. Hence, the Filter has to be such that for both functionalities I1 and I2 it forwards all
+messages from A to corresponding inIj . However, for all messages from outI it only forwards the
+message corresponding to S1 or S2 if the given port is in S. The set S is uniquely fixed by the
+composition, therefore Filter is fixed. The Filter always clocks its outputs. This construction is
+shown on Fig. 3.
+Note that for fully ordered composition we can assume that the Filter only affects the I2 part
+of the composition.
+5.3 Predictable output
+Arithmetic circuits are deterministic meaning that their inputs uniquely determine the outputs. In
+case of secret sharing this means that the output value is determined, but there is randomness in
+the outputs for individual parties because of secret sharing. We can define this property in terms
+of predictable outputs using the fact that the outputs of ideal systems are only dependent on the
+input value and not on the sharing.
+To define predictability for a real system Sys1, the corresponding ideal system I1, and a secure
+system I2 executed after Sys1 or I1, we define the following machines and configurations in Fig. 4.
+Note that the compositions of Sys1 or I1 with I2 in conf1 and conf2 are ordered. Each line or
+arrow in Fig. 4 may denote several channels. In particular, Sys1, I1 and I2 have several input and
+output ports for the user H (corresponding to the inputs from different computing parties CPi).
+The machine Split in conf3 and conf4 copies each input to both output channels. After that, it
+clocks the channel leading to I∗. The machine Split has another input port ctrlSplit?; the machine
+I∗ is intended to have the corresponding output and clocking ports ctrlSplit! and ctrlSplit/!. The
+machine Split ignores the inputs it receives from ctrlSplit?. But whenever Split is invoked with
+an input from this port, it clocks the other output channel, to which it had copied its input. In
+this manner, Split is able to immediately pass its input to both machines expecting them, with
+slight help from the machine I∗ (which will be bound with an existential quantifier in the following
+Def. 8).
+The machine Mux works as follows. It has a set C of the identities of parties that the adversary
+A has corrupted, and a list E to store the messages it received from Sys1 (or I1) and did not yet
+send to the adversary.
+1. On input (output, `x, x) on behalf of party CPi from Sys1 (or I1) it sends (output, `x, i) to
+I∗, and clocks the channel to I∗. Immediately after that, it expects to get a message on a
+channel from I∗ (this channel is clocked by I∗). Mux ignores the received message. Instead,
+it sends m = (input, `x, x, i) to A, if i ∈ C. Otherwise, it adds m to E.
+HSys1
+A1
+I2
+H
+I1
+A2
+I2
+conf1 conf2
+H
+Split
+Sys1
+Mux
+A1
+I∗
+conf3
+H
+Split
+I1
+Mux
+A2
+I∗
+conf4
+Figure 4: Configurations for predictable output
+2. On input (corrupt, i) from A it adds i to C and sends to A all entries (input, `x, x, i) ∈ E.
+It forwards the corruption request to I∗.
+3. On input (output, `x, x, i) from I∗ it sends (output, `x, x, i) to A and clocks the output.
+4. On input (input, `x, x, i) from I∗ it does nothing.
+We see that similarly to Split, the machine Mux expects the help of I∗ in sending a message both
+to it and to the adversary. The machine I∗ is expected to use these notifications to keep track
+of the progression of the computation, in order to provide the outputs to H at the same time it
+would have received them in conf1 and conf2.
+Definition 8. We say that the compositions Sys1 → I2 and I1 → I2 have jointly predictable out-
+come if there exists a machine I∗ (the “output predictor”) such that for the following configurations
+on Fig. 4 we have viewconf1(H) = viewconf3(H) and viewconf2(H) = viewconf4(H).
+Note that this condition is trivially satisfied for our correct protocols and we can obtain suitable
+I∗ by composition of I1 and I2 (with some extra functionality for scheduling) according to Def. 7.
+Also note that jointly predictable outcome ensures that Sys1 “computes the same thing” as I1.
+5.4 Composition theorems
+Theorem 2 (Black-box privacy composition, informal). The ordered composition of black-box
+private protocols is private.
+Theorem 3 (Secure composition, informal). The fully ordered composition of black-box private
+and black-box simulatable protocols with jointly predictable outcome is black-box simulatable.
+The formal versions of these theorems are stated and proven in Sec. 7.
+6 Simulators
+For proving theorems 2 and 3, we have to construct simulators for composed systems. These
+constructions are more complex and invasive than in the proof of theorem 1, and in this section,
+we set up some definitions for combining the simulators we have from the premises of the theorems.
+6.1 Privacy simulator
+Recall that a black-box privacy simulator for ideal structure Id = (Mˆ2, S) and real structure
+RS = (Mˆ1, S) is a machine Sim
+Id,RS that has ports inIdI ! and out
+Id
+I ? for communicating with Id and
+the set of ports APRS for communicating with the adversary that expects to run in parallel to RS .
+The channel inIdI is clocked by the simulator, while out
+Id
+I is clocked by Id . The set APRS contains
+the ports outi,Sys! for each machine Mi in the structure RS , the channels outi,Sys are clocked by
+the adversary. The simulator satisfies viewconf1(H
+′) = viewconf2(H
+′) for any H = H ′∪H⊥ and A,
+such that conf1 = (Mˆ1, S,H,A) and conf2 = (Mˆ2, S,H,Sim
+Id,RS ∪A) are privacy configurations.
+W.l.o.g. we may assume that each time the simulator is activated, it only writes to the output
+ports in APRS that belong to a single machine in RS . This is because the adversary is in complete
+control of scheduling in RS . In particular, the simulator writes into at most one outi,Sys during
+each invocation.
+6.2 Extended simulator
+An extended simulator additionally computes the outputs of corrupted parties. When composing
+the structures, these outputs are needed to be given as inputs to the simulator(s) of the next
+stage(s) of the composition. In the next definition, let Sink be a machine with ports outputi?,
+foutputi? for i ∈ [n] = {1, . . . , n}. Let Sink′ be a machine with ports outputi?, outputi! for i ∈ [n].
+Both machines have trivial behaviour, as there cannot be any channels from these machines to
+other ones.
+Let conf be a configuration with n parties, containing the channels ini,Sys, outi, outputi, and
+possibly foutputi for i ∈ [n]. Let τ be a trace of this configuration, i.e. a list of pairs (channel
+name, message), recording which messages were sent on which channel in which order during a
+run. Let O(τ) = (m1, . . . ,mn), where mi is either the list of messages output on channel outi (if
+there was a corruption request on ini,Sys) or ⊥ (if there was no such request). Note that outi is
+the channel that takes the outputs of the system to H or the next system in composition. Let
+O′(τ) = (m1, . . . ,mn), where mi is ⊥, if there was no corruption request on ini,Sys. If there was
+such a request, then let mi be the concatenation of lists of messages that appeared on foutputi and
+on outputi. For the configuration conf , let Oconf [resp. O′conf ] be the distribution of O(τ) [resp.
+O′(τ)] over all possible runs of conf .
+Definition 9 (Extended simulator). An extended simulator for an n-party ideal structure Id =
+({I}, S) and real structure RS = (Mˆ, S) is a machine ExtSimId,RS , that
+1. has the ports in the set APRS ∪ {inIdI !, outIdI ?} and in the set {outputi!, foutputi! | i ∈ [n]};
+2. clocks the channels foutputi;
+3. in case the corruption request on ini,Sys? comes after (output , `x) has been sent on outi,Sys,
+forwards this request to Id , and after learning the input of i-th party, immediately makes an
+output on foutputi and clocks that channel;
+4. never outputs on foutputi, except in the case described before;
+5. is a simulator: viewconf1(H
+′) = viewconf2(H
+′) for any H = H ′ ∪ H⊥ and A, such that
+conf1 = (Mˆ, S,H,A ∪ Sink′) and conf2 = (I, S,H,ExtSimId,RS ∪ A ∪ Sink) are privacy
+configurations;
+6. computes the outputs: Oconf1 = O′conf2 , for the same H = H ′ ∪H⊥, A, conf1 and conf2 as
+before.
+Lemma 2 (Extended simulators exist). Let SimId,RS be a privacy simulator for ideal structure Id
+and real structure RS. Then there exists an extended simulator ExtSimId,RS .
+Proof. An extended simulator can be constructed as follows. Let SimId,RS∗ be a machine obtained
+from SimId,RS by renaming its ports outi,Sys! to outi,sim! and giving it control over the clocking of
+the channels outi,sim. The machine Sim
+Id,RS
+∗ clocks the channel outi,sim at each invocation when it
+outputs a message in it. As we explained before, there is always at most one such i, that SimId,RS∗
+has written in outi,sim!.
+Let Extri be a machine with ports outi,sim?, extri! and outi,Sys!, clocking the channel extri. The
+machine Extri copies the inputs from outi,sim? to outi,Sys!. If the input is of the form (output, . . .),
+then it copies that input to extri! as well and clocks that channel.
+Let OutFilteri be a machine with ports extri?, outputi! and foutputi!, clocking the channel
+foutputi. The machine OutFilteri has a buffer M for output notifications and works as follows:
+1. on input (output, `x) from extri? it saves `x as a label from i to M and forwards the message
+out on outputi!;
+2. on input (output, x, `x) from extri? it works as follows:
+(a) if the label `x has be stored in M for party i then this input is forwarded on foutputi!,
+`x is removed from M for i and the channel foutputi is clocked,
+(b) if this label `x has not been stored then OutFilter forwards the message on outputi!.
+We let ExtSimId,RS be the composition of the machines SimId,RS∗ , Extri and OutFilteri (for all
+i ∈ [n]), see Fig. 5. Clearly, it satisfies the structural properties 1, 2 and 4 of Def. 9. It also satisfies
+3rd property due to the manner the real functionality notifies the adversary of computed outputs,
+and the manner OutFilteri handles these notifications. The 5th property is satisfied because the
+configurations described there behave in exactly the same way as the privacy configurations in
+Def. 4, except for the occasional invocations of Sink or Sink′ which do not affect the view of H ′.
+The 6th property is satisfied because SimId,RS correctly simulates the outputs of corrupted parties,
+which are then output on channels foutputi and outputi.
+ExtSim
+I1
+Sink
+Sim∗ Extri
+OutFilteri A
+outIP
+inIP outi,sim
+outi,Sys
+neti,Sys
+extri
+foutputi
+ini,Sys
+outputi
+neti,out
+Figure 5: Extended simulator construction with the
+ideal world functionality, adversary and connection to
+the rest of the simulator
+7 Security of composed protocols
+In this section we prove that ordered composition of private and secure protocols is secure. For
+this we at first show that we can limit the class of adversaries (Thm. 4) and then use this new
+class to show the security of the composed protocol (Thm. 5). From these results we know that
+our composition is secure with respect to general adversaries.
+7.1 Restricted adversary model
+Analysis of ordered compositions can be simplified by restricting adversarial behaviour. Let Sys1 →
+Sys2 be an ordered composition with the same set of corruptible parties CP1, . . . , CPn. Let A0 be
+a subclass of adversaries that never corrupt a party CPi in Sys2 before they corrupt the party CPi
+in Sys1 and let A1 ⊆ A0 be a subclass of adversaries that corrupts each party CPi simultaneously
+in both systems, i.e., do not send or receive any messages between corruption calls. Then it is easy
+to see that these restrictions are not limiting.
+Theorem 4. Let two systems Sys1 and Sys2 be composed in the ordered composition Sys1 → Sys2.
+Then the composed system is perfectly as secure with respect to the general set of adversaries as it
+is for adversaries in class A0.
+Proof. For the proof, we show how to construct a restricted adversary from a general adversary
+A so that the view of H in the two constructions coincides. For that we have to show that the
+original system is as secure as the composed system with the construction. The construction is
+shown Fig. 6 and introduces two small machines that work as follows.
+A0
+H
+Sys1
+A
+Sys2
+Filter
+Cor
+outi
+ini
+out∗i,Sys1 outi,Sys1
+neti,Sys1
+ini,Sys1
+ini,Sys2
+neti,Sys2
+outi,Sys2
+filter
+in∗i,Sys1
+in∗i,Sys2
+outputi
+Figure 6: Construction for the restricted adversary
+A simple stateless machine Cor assures that a party is always corrupted in Sys1 before than
+in Sys2. It has two input ports ini,Sys1? and ini,Sys2? for receiving corruption requests for the
+machines in Sys1 or Sys2 and output ports ini,Sys2 ! and ini,Sys1 ! for forwarding the corruption
+requests. The output port filter! is used for controlling a delay box Filter. The machine Cor works
+as follows:
+• on an input (corrupt, i) from ini,Sys1? it forwards the input to the ports filter! and in∗i,Sys1 !.
+• on an input (corrupt, i) from ini,Sys2? it forwards the input to the ports in∗i,Sys1 ! and in∗i,Sys2 !.
+To prevent A from receiving unrequested information, we have inserted Filter between Sys1
+and A. Filter keeps a set of corrupted parties Ic whose input must go through. For other parties
+the filter stores the last message or passes the messages (output, `x) that the honest parties are
+supposed to send to A. The port filter? is for updating the list Ic. If an input (corrupt, i) is written
+to filter? then i is added to Ic and the last message from CPi is released for A as the current state
+of CPi. The scheduling of Cor and Filter is fixed by clocking signals so that the list Ic is always
+updated before (corrupt, i) is written to in∗i,Sys1 !.
+Sys1 may have received more corruption requests in this setting than in the original construc-
+tion, but the Filter reduces the view to only corrupted parties. It is trivial that the reduced view
+has the same probability distribution as the simulation output if only this set of parties is corrupted
+because it clearly holds in the real world. Hence, the outputs of A in different worlds coincide.
+The correspondence of this construction and the restriction on class A0 is trivial.
+Corollary 1. Let two systems Sys1 and Sys2 be composed in the ordered composition Sys1 →
+Sys2. Then the composed system is perfectly as secure with respect to the general set of adversaries
+as it is for adversaries in class A1.
+Proof. It is sufficient to show how to construct a restricted adversary for A ∈ A0. The corre-
+sponding construction is analogous to the proof of Theorem 4. We must define a machine Cor
+that corrupts a party simultaneously in Sys1 and Sys2 and a filter Filter for deleting unexpected
+messages. As a result, we get an adversary that behaves identically.
+Based on these results we consider the more intuitive adversaries of class A1 in the following
+composition theorems. Note that this is suitable for cases of static or adaptive corruption, but not
+for modelling mobile corruption.
+7.2 Secure composition
+In this section we propose the main theorem that proves the security of the fully ordered com-
+position of private and secure systems. In general, the idea is that a private protocol finished by
+a secure protocol is secure. Informally we know that both simulators ensure that the view of A
+in the protocol is indistinguishable from the real world. In addition, the simulator of the secure
+protocol ensures that the view of A is consistent with the view of H.
+Theorem 5. Let Sys1 ≥modelpriv I1 in black-box manner and Sys2 ≥modelsec I2 in black-box manner,
+where model may be perfect, statistical, or computational. Let the ordered compositions Sys1 → I2
+and I1 → I2 have jointly predictable outcome. Then Sys1 → Sys2 ≥model,A1sec I in black-box
+manner, where the composition Sys1 → Sys2 is fully ordered and I is the ideal composition of I1
+and I2.
+Proof. Fig. 7 illustrates the ordered composition of two systems. Due to the black-box simulata-
+bility Sys2 ≥modelsec I2 and Thm. 1 we have viewconf0(H) ≈ viewconf1(H) (see Fig. 8) for some
+simulator Sim2.
+H
+Sys1
+A
+Sys2
+Figure 7: Composition of two real systems, conf0
+H
+Sys1
+A
+I2 Sim2
+Figure 8: Composition of a real and an ideal system,
+conf1
+Next step of the proof uses the predictable outcome (Def. 8) of Sys1 → I2. We consider Sim2 as
+a part of the adversary and obtain viewconf1(H) = viewconf2(H) (see Fig. 9). Recall that we have
+joint predictability, hence the same I∗ also demonstrates the predictable outcome of I1 → I2.
+H
+I∗
+A
+Sim2
+Sys1
+Split
+Mux
+Figure 9: Splitting the composition to two independent
+parts, conf2
+As next we do a cosmetic step that simplifies the exposition by introducing a new machine H∗
+that is the combination H∗ = H ∪ I∗ ∪ Split. This can be seen on Figure 10. For the machine H
+trivially viewconf2(H) = viewconf3(H). The scheduling does not change.
+H∗
+Sys1
+A
+Sim2
+Mux
+Figure 10: Regrouping the machines, conf3
+Next we use the assumption about adversary in class A1. Namely, we assume that in both
+systems the adversary has corrupted party CPi in either both systems or in none. This implies
+that it has seen all inputs of Sim2 as corrupted parties’ outputs in Sys1. This enables us to do one
+more rewiring that results in Fig. 11 with a new adversary A∗ that acts like Mux that does not
+receive honest parties outputs from Sys1. The part H⊥ that was previously used for honest parties’
+outputs as part of Mux is now used for all outputs of Sys1. In the case of static corruption this step
+could be done trivially because we could divide Mux based on corrupted and not corrupted ports.
+In general case this step can still be done by introducing the Extr and OutFilter from the ExtSim
+construction to the channel from Sys1 to A. The outputs from OutFilter serve as the inputs of the
+Mux∗ that in is just Mux with different input ports. Note that an analogous setup can be seen on
+Fig. 15 except we have just Extr and OutFilter and not full ExtSim. We then use the machines Extr,
+OutFilter and Mux∗ together with A to form A∗. The scheduling in general remains the same, but
+each time the adversary A clocks the outputs Sys1 to H∗⊥ the A∗ also clocks the outputi of the
+OutFilter. The simulator Sim2 also changes in a non-essential way to Sim
+∗
+2, as some of its inputs
+and outputs now move over different channels.
+Therefore, viewconf3(H∗) = viewconf4(H∗).
+H ′∗
+Sys1
+A∗
+H∗⊥ Sim∗2
+Figure 11: Splitting the Mux by its two roles, conf4
+Finally we finish with another cosmetic change to join A∗ and Sim2 to A∗∗ as shown on Fig. 12.
+Trivially, viewconf4(H∗) = viewconf5(H∗).
+H ′∗
+Sys1
+A∗∗
+H∗⊥
+Figure 12: Redefining the adversary, conf5
+Hence, by tracing back the changes we have viewconf0(H) ≈ viewconf5(H) as H is a sub-
+machine of H∗ and the view of H does not change if the view of H∗ remains the same.
+So far we analysed the composition Sys1 → Sys2, as a second step we have to analyse the
+ideal functionality I in the same setting. Let this be conf ′0. Lemma 1 allows us to express I as a
+composition of I1, I2 and Filter. We claim that a combination of machines ExtSim1 (the existence
+of which is shown in Lemma 2), Sim2 and Muxt defined below serves as a suitable simulator that
+proves the theorem. The configuration conf ′1 with these machines is depicted in Fig. 13.
+H
+I1 ExtSim1
+A
+I2
+Muxt
+Filter Sim2
+Figure 13: Sys1 replaced by the ideal system, conf
+′
+1
+The machine Muxt acts like Mux in Sec. 5.3 in the predictable output definition except that
+ExtSim is in the role of Sys1 and Filter is in the role of I∗. The scheduling is fixed by the description
+of individual machines.
+We consider A, ExtSim, Muxt, Filter and Sim2 as an adversary in Def. 8 to obtain the composition
+conf ′2 analogous to conf2. We also do the simplification step to push I∗ and Split to H to obtain
+H∗ and the resulting configuration conf ′3 can be seen on Fig. 14. The scheduling is defined by
+Def. 8 and conf ′1.
+H∗
+I1 ExtSim
+A
+Muxt
+Sim2
+Mux
+Filter
+Figure 14: Introduced intermediate machines, conf ′3
+This results in a quite complicated composition of small machines. At first, note that we
+can discard Filter which only effects the input values that move out from Mux, but by definition
+Muxt does not do anything with inputs from Filter. The machine Mux has two roles, it can either
+forward the inputs of the second composed party based on the outputs of I2 or the outputs of the
+composition it gets from H∗. For the same reasons as we discarded Filter we can also discard the
+part of Mux that uses the values from I1 because Muxt never uses them. Hence, we join this part
+of Mux with Muxt to obtain Mux∗ as on Fig. 15. The part of Mux that does not use inputs from I1
+is represented by H∗⊥. This is analogous to Fig. 10 except that Mux has been split to two distinct
+parts already.
+As the final step we decompose ExtSim to its parts Sim1, Extr and OutFilter. Then we introduce
+A∗∗ by combining A with Extr, OutFilter, Mux∗ and Sim2 to arrive at configuration conf ′5 on Fig. 16.
+With this we have shown that viewconf ′0(H) ≈ viewconf ′5(H) as H is a sub-machine of H∗.
+Note that the party H∗ in both of the reductions is the same if initial H is the same. This is
+H ′∗
+I1 ExtSim
+A
+Mux∗
+Sim2
+H∗⊥
+Figure 15: Simplification of conf ′3, conf
+′′
+3
+H ′∗
+I1 Sim1
+A∗∗
+H∗⊥
+Figure 16: Final configuration, conf ′5
+trivial as the machines Split and I∗ are the same due to joint predictability (Def. 8). The same
+holds for A∗∗. Trivially, the machine Sim∗2 included to A is the same. In addition, for conf3 we
+argued that the step to conf4 can be done by adding Extr and OutFilter which is exactly what we
+added in conf ′4. Finally, the part Mux∗ has exactly the same functionality in the two descriptions.
+With these two reductions we have shown that the question if Sys1 → Sys2 is as secure as I is
+reduced to question if conf5 is indistinguishable from conf
+′
+5. We can use the final state conf5 as
+a privacy configuration and we know that by definition Sys1 is as private as I1 and that for each
+adversary A we can use the same simulator Sim1. Hence, viewconf5(H) ≈ viewconf ′5(H).
+Corollary 2. Let Sys1 ≥modelpriv I1 in black-box manner and Sys2 ≥modelsec I2 in black-box manner,
+where model may be perfect, statistical, or computational. Let the ordered compositions Sys1 → I2
+and I1 → I2 have jointly predictable outcome. Then Sys1 → Sys2 ≥modelsec I in black-box manner,
+where the composition Sys1 → Sys2 is fully ordered and I is the ideal composition of I1 and I2.
+Proof. Direct result from Thm. 4 and 5.
+7.3 Composability of privacy
+In this section we show that the composition of black-box private protocols is black-box private.
+We prove the theorem for the composition of two systems and based on this it can be extended for
+larger compositions. Note that a plain channel that does not use or modify the inputs is always
+private and based on privacy configuration definition it is easy to see that a composition of two
+systems that do not communicate is private.
+Theorem 6. Let Sys1 ≥modelpriv I1 and Sys2 ≥modelpriv I2 in black-box manner, where model may be
+perfect, statistical, or computational. Then Sys1 → Sys2 ≥model,A1priv I in black-box manner, where
+the composition Sys1 → Sys2 is ordered and I is the ideal composition of I1 and I2.
+Proof. For simplicity of exposition we assume that all inputs are inputs to Sys1, extending this to
+independent inputs for Sys2 is trivial modification. We can assume that all inputs that Sys1 does
+not use are also its outputs. Therefore, we can consider full ordered composition for simplicity and
+the step to just ordered composition is trivial.
+Consider a configuration analogous to Fig. 7 except with a privacy configuration with H =
+H ′∪H⊥, such that the output of Sys2 goes to H⊥ in conf0. We can do the step to replace Sys2 with
+the corresponding ideal functionality and corresponding simulator Sim2 by joining H
+′ and Sys1 to
+new H ′∗ and using this as a new privacy configuration. The proof for this substitution is analogous
+to the proof of the original Thm. 1 about composability of security [2]. We get a configuration
+confr where viewconfr (H
+′
+∗) ≈ viewconf0(H ′∗). Thus also viewconf0(H ′) ≈ viewconfr (H ′) because
+H ′ is a submachine of H ′∗. We get an analogous situation to Fig. 8 with the difference that output
+of I2 goes to H⊥.
+On the other hand we want to consider a configuration conf ′0 with I, H and A, and some
+simulator. We use Lemma 1 to replace I with a combination of I1, I2, and Filter. Note that if
+A ∈ A1, then Filter only needs to connect to I2, because all messages between I1 and the adversary
+are simply passed through. As the simulator, we propose the combination of machines Sim1, Extr,
+OutFilter, Mux and Sim2, let confs be the resulting configuration (see Fig. 17).
+H
+I1 Sim1
+Extr
+OutFilter
+A
+I2
+H⊥
+Mux
+Filter Sim2
+Figure 17: Simulator construction for the I and
+Sys1 → Sys2, confs
+Note that the collection Sim1, Extr and OutFilter is actually ExtSim1. In addition, Mux works
+as described in Sec. 5.3 except of the special scheduling.
+We consider fully ordered composition, therefore all inputs of I2 are stopped by the Filter and
+the private ideal functionality I2 does not give outputs, therefore there is no communication from
+Filter to Mux. Hence, we can define a new H∗⊥ that is a collection I2, Filter and H⊥. If we consider
+a new adversary A∗ that is the combination of A, Extr, OutFilter, Mux and Sim2 then we have a
+privacy configuration. We can thus replace I1 and Sim1 in confs with Sys1 without changing the
+view of H.
+We claim that the setup of confs results in the same view as confr. By definition we know that
+Sys1 and Sim2 can produce a view that is indistinguishable from the real protocol run. Therefore,
+the only thing to argue is that Sim2 sees equivalent inputs in the two configurations. By definition,
+in confr the machine Sim2 receives from I2 exactly the inputs that are the corrupted parties’
+outputs in Sys1. However, this is also the case in confs because by definition Extr can also extract
+the outputs of the corrupted parties in a real protocol run and therefore the corrupted parties’
+outputs in Sys1.
+Corollary 3. Let Sys1 ≥modelpriv I1 and Sys2 ≥modelpriv I2 in black-box manner, where model may be
+perfect, statistical, or computational. Then Sys1 → Sys2 ≥modelpriv I in black-box manner, where the
+composition Sys1 → Sys2 is ordered and I is the ideal composition of I1 and I2.
+Proof. Direct result from Thm. 4 and 6.
+7.4 Applicability of the composition theorems
+In general, we can define the some composed private protocol using the composability of the privacy
+notion based on Thm. 6 and especially Cor. 3. In addition, we know that all secure systems are
+also private and we can include secure systems in this part of the protocol. In order to achieve
+universally composable secure protocols we need to finish the composed private protocol by a secure
+protocol.
+Based on the composability of security (Thm. 1) we can define the finishing part of the protocol
+as a composition of secure protocols. The main restriction of the fully ordered composition in
+Thm. 5 and Cor. 2 is that all outputs of the private system have to be used by the secure system
+so that the outputs of the composition are the outputs of the secure system.
+In the context of secure multiparty computation it is most reasonable to consider private proto-
+cols for arithmetic operations. The secure protocols are mainly required for publishing or resharing
+a value which can be used for finishing computations or finishing some stage of computations.
+8 Conclusions
+We have shown that privacy requirement is sufficient for most secure computation primitives in the
+passive security model in order to obtain universally composable secure multiparty computation
+protocols. Private protocols are often more efficient, while their composition is no more complex
+than composing secure protocols. We can therefore obtain better performance without compro-
+mising the rigour of security arguments. We have also shown that privacy and security are tightly
+related, and a private protocol can be made secure by introducing secure finalising step, which can
+be very simple.
+We believe our ideas are applicable also in the case of active adversaries against secure multi-
+party computation protocols. There will be additional difficulties because the adversarial behaviour
+is more complex and the validity of the sharing has to be taken into account. It is likely that we
+have pushed most of these difficulties into the definition of predictability, reducing them to standard
+arguments about the correctness of protocol designs for particular arithmetic operations.
+References
+[1] R. Canetti, “Universally composable security: A new paradigm for cryptographic protocols,”
+in Proceedings of the 42nd IEEE Symposium on Foundations of Computer Science, ser. FOCS
+’01. Washington, DC, USA: IEEE Computer Society, 2001, pp. 136–145.
+[2] B. Pfitzmann and M. Waidner, “Composition and integrity preservation of secure reactive sys-
+tems,” in Proceedings of the 7th ACM conference on Computer and communications security,
+ser. CCS ’00. New York, NY, USA: ACM, 2000, pp. 245–254.
+[3] U. Maurer and R. Renner, “Abstract cryptography,” in The Second Symposium in Innovations
+in Computer Science, ICS 2011, B. Chazelle, Ed. Tsinghua University Press, Jan. 2011, pp.
+1–21.
+[4] R. Ku¨sters and M. Tuengerthal, “The IITM model: a simple and expressive model for universal
+composability,” Cryptology ePrint Archive, Report 2013/025, 2013.
+[5] B. Pfitzmann and M. Waidner, “A model for asynchronous reactive systems and its application
+to secure message transmission,” in Proceedings of the 2001 IEEE Symposium on Security and
+Privacy, ser. SP ’01. Washington, DC, USA: IEEE Computer Society, 2001, pp. 184–.
+[6] M. Backes, B. Pfitzmann, and M. Waidner, “The reactive simulatability (rsim) framework for
+asynchronous systems,” Inf. Comput., vol. 205, no. 12, pp. 1685–1720, 2007.
+[7] D. Bogdanov, S. Laur, and J. Willemson, “Sharemind: A framework for fast privacy-preserving
+computations,” in Proceedings of the 13th European Symposium on Research in Computer
+Security - ESORICS’08, ser. Lecture Notes in Computer Science, S. Jajodia and J. Lopez,
+Eds., vol. 5283. Springer Berlin / Heidelberg, 2008, pp. 192–206.
+[8] M. Geisler, “Cryptographic protocols: Theory and implementation,” Ph.D. dissertation,
+Aarhus University, February 2010.
+[9] M. Burkhart, M. Strasser, D. Many, and X. A. Dimitropoulos, “Sepia: Privacy-preserving
+aggregation of multi-domain network events and statistics,” in USENIX Security Symposium.
+USENIX Association, 2010, pp. 223–240.
+[10] D. Bogdanov, M. Niitsoo, T. Toft, and J. Willemson, “High-performance secure multi-party
+computation for data mining applications,” Int. J. Inf. Sec., vol. 11, no. 6, pp. 403–418, 2012.
+[11] D. Bogdanov, “Sharemind: programmable secure computations with practical applications,”
+Ph.D. dissertation, University of Tartu, 2013, http://hdl.handle.net/10062/29041.
+[12] I. Damg˚ard and J. B. Nielsen, “Universally composable efficient multiparty computation from
+threshold homomorphic encryption,” in Advances in Cryptology - CRYPTO 2003, 23rd Annual
+International Cryptology Conference, Santa Barbara, California, USA, August 17-21, 2003,
+Proceedings, ser. Lecture Notes in Computer Science, vol. 2729. Springer, 2003, pp. 247–264.
+[13] M. Backes, B. Pfitzmann, and M. Waidner, “A composable cryptographic library with nested
+operations,” in ACM Conference on Computer and Communications Security, S. Jajodia,
+V. Atluri, and T. Jaeger, Eds. ACM, 2003, pp. 220–230.
+[14] R. Ku¨sters and M. Tuengerthal, “Universally composable symmetric encryption,” in Proceed-
+ings of the 22nd IEEE Computer Security Foundations Symposium, CSF 2009, Port Jefferson,
+New York, USA, July 8-10, 2009. IEEE Computer Society, 2009, pp. 293–307.
+[15] R. Canetti and J. Herzog, “Universally composable symbolic security analysis,” Journal of
+Cryptology, vol. 24, no. 1, pp. 83–147, 2011.
+[16] J. Groth, R. Ostrovsky, and A. Sahai, “New Techniques for Noninteractive Zero-Knowledge,”
+Journal of ACM, vol. 59, no. 3, pp. 11:1–11:35, 2012.
+[17] S. Laur, R. Talviste, and J. Willemson, “From oblivious aes to efficient and secure
+database join in the multiparty setting,” Cryptology ePrint Archive, Report 2013/203, 2013,
+http://eprint.iacr.org/.
+[18] O. Catrina and S. Hoogh, “Secure multiparty linear programming using fixed-point arith-
+metic,” in Computer Security ESORICS 2010, ser. Lecture Notes in Computer Science,
+D. Gritzalis, B. Preneel, and M. Theoharidou, Eds. Springer Berlin Heidelberg, 2010, vol.
+6345, pp. 134–150.
+

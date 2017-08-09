@@ -1,0 +1,201 @@
+13, 31, and the 3x + 1 problem
+Frazer Jarvis
+Eureka 49 (March 1989) 22–25 [Graham Nelson, editor]
+Problem: Given a positive integer, apply the following algorithm. If it is even, halve it, and if it
+is odd, multiply it by three and add one. Repeat this process iteratively.
+Example: Start with 3. This is odd, so multiply it by three and add one. This gives 10, which is
+even, so halve this, to obtain 5. Repeated action of this process gives 16, 8, 4, 2, 1, 4, 2, 1,. . . and we
+have entered a loop.
+Conjecture: Whichever number we start with, the process will always culminate in the loop . . . ,
+4, 2, 1, 4, 2, 1,. . . .
+Define: T (n) = the result of the algorithm on n. Define T k(n) = T (T k−1(n)).
+The problem dates from before World War II, when it seems to have been proposed by Lothar
+Collatz, whilst a student at Hamburg [1], but it has resisted all subsequent attempts at solution, despite
+having been verified up to 1012.
+The behaviour of individual numbers of the sequence n, T (n), T 2(n),. . . is too erratic to discover
+any useful non-trivial result, so the properties which should be investigated are those which relate to the
+sequence as a whole. A natural choice in the number of steps k until T k(n) = 1 (assuming the conjecture).
+So:
+Define: f(n) = inf{m |Tm(n) = 1}.
+For example, f(1) = 0, f(2) = 1, f(3) = 7, f(4) = 2, etc.; in general, f(2n) = f(n) + 1 and
+f(2n− 1) = f(6n− 2) + 1 (n > 1). As we tabulate f(n), certain patterns emerge.
+An easy one is that for all K ≥ 1, f(8K + 4) = f(8K + 5).
+To prove this, note that by operation of the algorithm:
+8K + 4 −→ 4K + 2 −→ 2K + 1 −→ 6K + 4
+8K + 5 −→ 24K + 16 −→ 12K + 8 −→ 6K + 4
+and so T 3(8K + 4) = T 3(8K + 5). So f(T 3(8K + 4)) = f(T 3(8K + 5)). But, by definition, f(T k(n)) =
+f(n)− k, so f(8K + 4) = f(8K + 5), as required.
+Similarly f(16K + 2) = f(16K + 3); f(32K + 22) = f(32K + 23) etc.
+In any interval, a few values of f(n) will occur often. For instance, in the range 4900 to 4999,
+f(n) takes only thirteen distinct values. In this range, f(n) = 134 for 29 values of n, f(n) = 41 has 72
+solutions, and so on.
+But the result I would like to investigate is more apparent by looking at differences between
+consecutive values of f(n). So, with this in mind:
+Define: g(n) = f(n+ 1)− f(n).
+So, as a corollary to a previous result, g(8K + 4) = 0 (K ≥ 1).
+For what follows next, we need a little elementary number theory.
+Theorem. If a, b are coprime, then there exist integers x, y such that ax+ by = 1. 
+A rigorous proof is easy to find, but to construct x, y, we run the Euclidean algorithm in reverse;
+e.g., for a = 12, b = 7,
+12 = 1× 7 + 5, 7 = 1× 5 + 2, 5 = 2× 2 + 1, 2 = 2× 1
+Then 1 = 5− 2× 2 = 5− 2× (7− 1× 5) = 3× 5− 2× 7 = 3× (12− 1× 7)− 2× 7 = 3× 12− 5× 7. So
+x = 3, y = −5 solves 12x+ 7y = 1.
+An easy corollary is:
+1
+Theorem. If d is a multiple of (a, b), the highest common factor of a and b, then there exist
+integers x, y such that ax + by = d. Furthermore, if x0, y0 are solutions to this, then so are x0 + kb,
+y0 − ka for all integers k, and all solutions are of this form. 
+If we now restrict ourselves to cases where a and b are coprime, we define
+da,b = min{
+√
+x2 + y2 | ax+ by = n}
+which is well-defined, since the function f(X) =
+√
+(x0 + bX)2 + (y0 − aX)2 is convex. Now if X runs
+through the integers, min{f(X) |X ∈ Z} is well-defined.
+Now we return to the 3X + 1 problem, and tabulate the values of g(n) for n = 1, 2, . . . , we may
+observe a rather curious result, namely that d13,31(g(n)) is always “small”; in other words, the difference
+between two consecutive values of f(n) is expressible as 13x + 31y for small values of x and y. For
+example, the values of f(n) are tabulated below for 5385 ≤ n ≤ 5399:
+n f(n) g(n) x y [d(g(n))]2
+5385 147 −80 1 −3 10
+5386 67 80 −1 3 10
+5387 147 −80 1 −3 10
+5388 67 0 0 0 0
+5389 67 −39 −3 0 9
+5390 28 0 0 0 0
+5391 28 88 2 2 8
+5392 116 −49 1 −2 5
+5393 67 93 0 3 9
+5394 160 0 0 0 0
+5395 160 −44 −1 −1 2
+5396 116 0 0 0 0
+5397 116 −49 1 −2 5
+5398 67 0 0 0 0
+5399 67 49 −1 2 5
+where d(k) = d13,31(k).
+This phenomenon occurs for all numbers greater than about 20, and as far as 20000 at least, and
+seems to hold even for random samples of twenty consecutive seven-digit numbers.
+For smaller numbers, from 1 to 1000, computer checking has shown that the numbers 13 and 31
+perform significantly better than any other pair with a, b coprime and less than 50. [2]
+We consider the pair n, n+ 1. The algorithm essentially consists of a halving or a trebling. If we
+look at the operation X 7→ 3X + 1, we may neglect the addition of one, because it is fairly insignificant.
+Then for n to be transformed to 1, we need a(n) halvings and b(n) treblings, with a(n) = b(n) = f(n).
+Similarly, for n + 1 to be transformed to 1, we need a(n + 1) halvings and b(n + 1) treblings with
+a(n+ 1) + b(n+ 1) = f(n + 1).
+So, to summarise,
+n ·
+3b(n)
+2a(n)
+≈ 1 a(n) + b(n) = f(n)
+(n + 1) ·
+3b(n+1)
+2a(n+1)
+≈ 1 a(n + 1) + b(n+ 1) = f(n+ 1)
+For sufficiently large n,
+3b(n)
+2a(n)
+≈
+3b(n+1)
+2a(n+1)
+Put a = a(n + 1)− a(n), b = b(n+ 1)− b(n); then
+3b
+2a
+≈ 1 (1)
+Also, a + b = a(n+ 1)− a(n) + b(n+ 1)− b(n) = f(n+ 1)− f(n) = g(n).
+a + b = g(n) (2)
+a, b ∈ Z (3)
+2
+Solving (1), (2) gives:
+a ≈ g(n) · log6 3
+b ≈ g(n) · log6 2
+Thus
+b
+g(n)
+≈ log6 2
+But b, g(n) ∈ Z, so to find possible values of g(n), look for rational approximations to log6 2. To find
+good rational approximations, the obvious method is to look at the continued fraction expression. I give
+this in standard notation; explanations may be found in any number theory textbook.
+log6 2 = [0, 2, 1, 1, 2, 2, 3, 1, 5, 2, . . .]
+giving successive convergents
+0
+1
+,
+1
+2
+,
+1
+3
+,
+2
+5
+,
+5
+13
+,
+12
+31
+,
+41
+106
+,
+53
+137
+,
+306
+791
+,
+665
+1719
+, . . .
+The denominators of these fractions are the best possible values of |g(n)|. Thus, the best values for |g(n)|
+are 1, 2, 3, 5, 13, 31, 106,. . . , and there are the numbers 13 and 31! Each successive pair (1, 2); (2, 3);
+(3, 5);. . . , seems to be a “basis” for the values of g(n) for a certain range of n (this occurs because of the
+simplifications involved in the analysis above).
+(a, b) n for which (a, b)
+is best basis
+(2, 3) 1 ≤ n ≤ 2
+(3, 5) 3 ≤ n ≤ 8
+(5, 13) 9 ≤ n ≤ 24
+(13, 31) 25 ≤ n ≤?
+So, in fact, the result about 13 and 31 should not surprise us.
+To end with, I will leave the interested reader (if there are any) with a few conjectures. I think
+these are all true, but very difficult to prove!
+1. Let h(n) be the highest member of the sequence n, T (n), T 2(n),. . . . It is clear that lim(h(n)
+n
+) = 1,
+by taking n = 2k, and that lim(h(n)
+n
+) = ∞, by taking n = 2k − 1; then T 2k(n) = 3k − 1. Does
+lim( 1
+N
+∑N
+1
+h(n)
+n
+) exist?
+2. Given k ∈ N, does there exist n for which f(n) = f(n+ 1) = · · · = f(n+ k)?
+3. Set
+m(n) =
+{
+1, if f(n) = f(n+ 1),
+0, otherwise
+Does lim( 1
+n
+∑N
+1 m(n)) exist and if so, what is it?
+4. Does lim( 1
+N logN
+∑N
+1 f(n)) tend to a finite non-zero limit?
+The author would be delighted to hear of progress made on any of these problems!
+References
+[1] Gardner, M., Wheels, Life and Other Mathematical Amusements
+[2] Many thanks to John Croft and Graham Nelson for these computer results.
+This paper appeared in Eureka, the journal of the Archimedeans (the undergraduate mathematical
+society at the University of Cambridge), in 1989, when I was a second-year undergraduate. Looking back
+at it now (2005), I’m rather embarrassed by the poor quality of the writing. There are errors too; the
+second theorem is false if (a, b) > 1 – in this case, we can take k to be any rational with denominator
+(a, b). Of course, we only use the theorem for (a, b) = (13, 31), so all the conclusions are fine.
+3
+

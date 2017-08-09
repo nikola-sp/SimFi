@@ -1,0 +1,957 @@
+Verifiable Computation over Encrypted Data in the Presence of
+Verification Queries
+Rosario Gennaro and Valerio Pastro
+Center for Algorithms and Interactive Scientific Software, The City College of New York,
+{rosario,pastro}@cs.ccny.cuny.edu
+Abstract. We consider the problem of a client who outsources the computation of a function f over
+an input x to a server, who returns y = f(x). The client wants to be assured of the correctness of the
+computation and wants to preserve confidentiality of the input x and possibly of the function f as well.
+Moreover, the client wants to invest substantially less effort in verifying the correctness of the result
+than it would require to compute f from scratch.
+This is the problem of secure outsourced computation over encrypted data. Most of the work on
+outsourced computation in the literature focuses on either privacy of the data, using Fully Homomorphic
+Encryption (FHE), or the integrity of the computation. No general security definition for protocols
+achieving both privacy and integrity appears in the literature. Previous definitions only deal with a
+very limited security model where the server is not allowed to issue verification queries to the client:
+i.e. it is not allowed to “see” if the client accepts or rejects the value y.
+In this paper we present:
+1. A formal definition of private and secure outsourced computation in the presence of verification
+queries;
+2. A protocol based on FHE that achieves the above definition for arbitrary poly-time computations;
+3. Some additional protocols for the computation of ad-hoc functions (such as the computation of
+polynomials and linear combinations) over encrypted data. These protocols do not use the power
+of FHE, and therefore are much more efficient than the generic approach. We point out that some
+existing protocols in the literature for these tasks become insecure in the presence of verification
+queries, while our protocols can be proven in the stronger security model where verification queries
+are allowed.
+1 Introduction
+Is it possible to delegate the processing of your data to a party you don’t completely trust? What if you do not
+want to give full access to your data to such party? Or what if the computation you delegate is so sensitive
+that you must make sure the result is correct, but must do so using only very limited computational resources
+(which is the reason you delegated the computation in the first place)? These are central questions related
+to the security of cloud computing, a paradigm where businesses buy computing time from a service, rather
+than purchase and maintain their own computing resources. These issues also arise from the proliferation
+of mobile devices, such as smart phones and tablets: computationally weak devices which might outsource
+computationally intensive operation, e.g. a cryptographic operation or a photo manipulation that they are
+not able to perform on their own.
+This might explain why Secure Outsourced Computation has become a very active research area in
+cryptography. When it comes to the security and privacy concerns associated with outsourced computation,
+we can summarize them in the following very important two questions:
+– Is it possible to protect the privacy of the input to the computation? In other words, can an outside party
+compute for us, without learning our private data?
+– Can you efficiently verify the result of the computation? In other words, how does one check that the
+outside party performed the computation correctly without investing too many computational resources
+in the verification (i.e. by redoing the computation from scratch)?
+Both questions have a long research history associated with them. The need for an encryption algorithm
+that would allow arbitrary computation over encrypted data was recognized very early by cryptographers
+(see the notion of privacy homomorphism in [RAD78]). A tantalizing research question, it remained open
+until the breakthrough result by Gentry [Gen09], who constructed the first Fully Homomorphic Encryption
+(FHE). While the initial proposal remains only of theoretical interest, Gentry’s work revealed a new set
+of techniques which were immediately put to use in the construction of many other more efficient schemes
+[Gen10,SV10,GH11,BV11,BGV12,GHS12,Bra12], and today we seem to stand at the verge of having schemes
+which can be used in practice.
+Efficient verification of arbitrarily complex computations was the underlying goal of Interactive Proofs
+[Bab85,GMR89], where a powerful (e.g. super-polynomial) prover can (probabilistically) convince a weak
+(e.g. polynomial) verifier of the truth of statements that the verifier could not compute on its own. The goal
+to make the verifier as efficient as possible led to the concept of probabilistically checkable proofs (PCPs)
+[AS92,BFL90,BFLS91], where a prover can prepare a proof that the verifier needs to check in only very
+few places (in particular only a constant number of bits of the proofs needed for NP languages) and their
+cryptographic applications: the efficient arguments of Kilian [Kil92,Kil95] and Micali’s non-interactive CS
+Proofs [Mic94].
+The application to cloud computing has rekindled attention to this area, particularly in the search for
+protocols where arbitrary poly-time (as opposed to superpoly-time) computations can be efficiently verified
+by a linear (or quasi-linear) verifier, and performed by a prover without too much overhead. Starting with
+the work on muggles proof [GKR08] a line of research revisited and “scaled down” the PCP machinery
+[GLR11,BCCT12a,BCCT12b]. Another line of work explored alternative ways of arithmetizing computations
+to construct efficient proofs [Gro10,Lip12,GGPR13]. Yet another approach used FHE as a tool to build
+efficient verification of arbitrary computations [GGP10,AIK10,CKV10].
+Several implementation efforts [CMT12,Tha13,PHGR13,BSCG+13] show that here too we are on the
+verge of achieving practical efficiency, with the Quadratic Span Program techniques of [GGPR13,PHGR13]
+showing particular promise.
+1.1 Our Contribution
+Given the practical and theoretical relevance of this research area, and the level of maturity the field is
+reaching, it is somewhat surprising to notice that all the papers mentioned above deal with either one of
+the two main questions. There are many results about finding efficient FHE schemes, and therefore efficient
+computation over encrypted data, but without verification of its correctness. On the other hand, the works
+on verifying computation seem focused on the case that the data is in the clear (an exception is [GKP+13]
+which we discuss in detail below).
+The protocols for verifiable computation in [GGP10,CKV10,AIK10] use FHE as a tool to achieve ver-
+ifiability. Almost as a by-product of the techniques, they turn out to achieve privacy of the data as well
+(the [GGP10] protocol also hides “most” of the function being computed – only the topology of the circuit
+computing is revealed [BHR12]). In [GGP10] a formal definition of all the properties needed by a verifiable
+computation scheme is given including input privacy. However, the definition in [GGP10] is in a very weak
+model in which the adversary is not allowed to issue verification queries to the client. In other words, a cheat-
+ing server who observes the behavior of the client when an incorrect proof is presented is not an adversary
+considered by the definition in [GGP10].
+There was a reason for this: as discussed in [GGP10], such a cheating server could in fact break the
+protocols in [GGP10,CKV10,AIK10] completely (i.e. both input privacy and output correctness would be
+compromised). We revisit this attack later in this section. For now we simply point out that [GGP10] defined
+only what they could achieve, and assumed that the acceptance/rejection bit of the client remains private
+and not learned by the adversary.
+Somewhat surprisingly, no formal definition of private and secure outsourced computation in the presence
+of verification queries can be found in the literature. Our goal in this paper is to address this somewhat
+problematic state of affairs.
+In particular we present the following:
+1. An upgrade to the definition in [GGP10] that allows verification queries by the adversary. This is the
+strongest possible model in which we can define security.
+2. A protocol based on FHE that achieves the above definition for arbitrary poly-time computations.
+3. Some additional protocols for the computation of ad-hoc functions such as the computation of polynomials
+and linear combinations over encrypted data. These protocols do not use the power of FHE, and therefore
+are much more efficient than the generic approach. These tasks had been considered by [BGV11,LPJY13].
+We point out that the protocol in [BGV11] becomes insecure in the presence of verification queries (a
+fact not noticed in that paper), while our protocols can be proven in the stronger security model where
+verification queries are allowed; moreover, the protocol suggested in [LPJY13] for verifiable computation
+of linear combinations over encrypted data is restrictive, since the linear combinations have to sit in a
+small range for the client to retrieve the correct result.
+Both our ad-hoc protocols are expressed in the same format as the general protocol, and are “function
+private”, in the sense that the data defining the function to be computed is not disclosed to the server
+(see Section 2); moreover, our protocol for verifiable computation of linear combinations achieves both
+function privacy and input privacy. To the best of our knowledge, this is the first protocol to achieve
+both properties.
+1.2 The Technical Issues
+One might think that to achieve a fully secure (i.e. both private and correct) outsourced computation, it is
+sufficient to encrypt the data a with FHE and also run a verifiable computation for the function f . In other
+words the client would send Ca = FHE(a) and the server would return C = FHE(f(a)) together with a proof
+pi that the decryption of C is the correct value. The client would then decrypt C and accept only if the proof
+verifies it.
+First of all, it is not immediately obvious how to do this for arbitrary computations in a way that the proof
+be efficiently verifiable (i.e. in quasi-linear time) by the verifier. But even more importantly this approach
+has no hope of achieving any meaningful notion of privacy (e.g. semantic security) for the encrypted data a.
+Indeed, suppose that the server knows a priori information about the data (at the extreme that the data a
+can assume only two possible values a0 or a1). Then the server would discard Ca and run the protocol on
+C0 = FHE(a0). If the client accepts, then the server knows that a = a0; if the client rejects, then it must
+be that a = a1. In other words the proof of correctness of the result can be used as a decryption oracle on
+the FHE: in order for this protocol to be secure the encryption should be secure against chosen-ciphertext
+attacks, but that is not possible if we also need it to be homomorphic.
+The only way to maintain semantic security using this approach is to assume that the server/adversary
+is not given access to the client’s decision bit regarding acceptance of the proof. In other words, security is
+achieved in a scheme in which the adversary is not allowed arbitrary verification queries on the protocol.
+This is of course a strong assumption on the behavior of the adversary and a very weak security model.
+1.3 Other Prior Work
+Generic Protocols. A different line of work to achieve private and verifiable outsourced computation was
+introduced by Goldwasser et al. in [GKP+13] on functional encryption (FE). An FE scheme is an encryption
+scheme with a single public key PK and several secret keys: given a function f there is a secret key SKf
+associated with it. Given c, the encryption of a message m under PK, the owner of the secret key SKf
+successfully decrypts c to f(m) and learns no other information about m. The main result in [GKP+13] is
+the construction of such an FE scheme for any function defined by a poly-size circuit.
+In a passing remark in the Introduction the authors of [GKP+13] show that such an FE scheme can be used
+to construct a VC that operates over encrypted inputs and is resistant to verification queries (in particular it
+is publicly verifiable – anybody can verify that the server operates correctly). The idea originates in [PRV12],
+for the case of attribute-based encryption (a subset of FE): to outsource the computation of a boolean (i.e.
+with output in {0, 1}) function f , the client gives the server the secret key SKfˆ (in a potentially expensive
+preprocessing phase) for the function fˆ defined as follows: fˆ(r, x) = r if f(x) = 1 otherwise fˆ(r, x) = ⊥.
+During the computation stage (when the client asks the server to compute f(x)), the client encrypts the pair
+(r, x) for a random value r and submits c to the server. If the server returns the correct value r, then the
+client has a “proof” that f(x) = 1. Note that
+– this is a “one-sided” proof since the client cannot receive a proof that f(x) = 0 (the server can always
+refuse to answer when f(x) = 1) – this can be addressed by outsourcing both f and its complement;
+– This scheme is privately verifiable, but can be made publicly verifiable by publicizing an “obfuscated”
+version of the random value r;
+– This scheme does not reveal x, but reveals f(x). In [GKP+13] they also briefly discuss a neat technique
+which hides the value of f(x).
+We point out that the above construction is only sketched in [GKP+13], together with an intuitive
+motivation for its security, but no formal definition or proof is given. When one formally analyzes the
+protocol in [GKP+13] in light of our definition the following issues come up:
+– As discussed in [BSW11], a simulation-based definition of security for FE cannot be achieved in general
+in an “adaptive” model in which the adversary chooses the function f to be evaluated after seeing the
+ciphertext encoding x. It appears that this limitation might be inherited by the FE-based verifiable
+computation in [GKP+13], though the situation is far from clear. Our security definition is a game-based
+one, but the security proof might require the FE tool to be simulatable. A proof of the [GKP+13] protocol
+in this model is important, since in many cloud computing application the data might sit encrypted on
+a cloud server, before any processing is performed on it. In contrast, we can provably show that our
+proposed protocol does not have this limitation (see Section 2);
+– Additionally, if one requires “standard” security against poly-time adversaries the protocol in [GKP+13]
+only achieves selective security, where the adversary has to commit in advance to the input value on which
+it wants to cheat1 while our protocol achieves full security for poly-time adversaries when instantiated
+with the appropriate FHE and VC components.
+– Finally, the scheme in [GKP+13] intrinsically works for binary functions. While this is sufficient in theory,
+in practice it requires the overhead of working bit-by-bit on the function output. Our protocol is more
+versatile and potentially more efficient, since it can handle arithmetic circuits if the underlying FHE and
+VC schemes can (several FHE schemes work over arithmetic circuits, and the QSP/QAP approach in
+[GGPR13] yields an efficient VC over arithmetic circuits)2.
+Ad-Hoc Protocols. The verification of the result after decryption is actually suggested in [BGV11] that
+proposes protocols for “ad-hoc” computations (for the evaluation of polynomials) and does not require the
+full power of FHE, but simply additively homomorphic encryption. In that protocol, the client encrypts the
+data a under an additively homomorphic encryption scheme Enc and receives back C = Enc(f(a)) and a
+proof pi. In order to verify the proof, the client must decrypt C, creating therefore the opportunity for the
+above attack (neither the attack nor the weak countermeasure discussed above are mentioned in [BGV11]).
+The verification of the result before decryption is employed in [LPJY13] that proposes a protocol for the
+evaluation of linear computation over encrypted data, using additively homomorphic encryption, and makes
+use of structure preserving signatures on the ciphertexts group. The encryption scheme in that protocol,
+however, is used in such a way that the client cannot decrypt the result of the computation in general (the
+client would need to compute the discrete logarithm of the encoded linear combination), so the protocol
+allows efficient decryption only if the computation of linear combinations is in a small range.
+1.4 Our Generic Protocol
+Our protocol3 assumes the existence of a FHE scheme, and also of an efficiently verifiable scheme to outsource
+the computation of a function f over data a, sent to the server in the clear (e.g. [GGPR13]).
+1 This is because both known constructions of FE [GKP+13,GGH+13] achieve only selective security against poly-
+time adversaries – full security can be obtained at the cost of assuming security against sub-exponential adversaries:
+a much stronger assumption.
+2 Another thing to consider is that the FE construction in [GKP+13] requires the client to work in the depth of the
+function f being outsourced. However, the new FE scheme in [GGH+13] based on indistinguishability obfuscation
+removes this limitation (since in their case ciphertexts are succinct and do not depend on the size of the circuit
+computing f in any way).
+3 We have never seen this protocol suggested anywhere in the literature, and we are not even aware of it as some
+sort of folklore theorem.
+The protocol encrypts the data a with an FHE scheme: Ca = FHE(a). It then runs a protocol for the
+verifiable outsourcing not of f but of the function F = EvalFHE(f), i.e. the circuit that evaluates C =
+FHE(f(a)) over Ca, which is now the input “in the clear”.
+In order to hide both f and a, we follow the usual approach of outsourcing the universal circuit which
+takes as input both f and a.
+We note that this technique prevents the adversary from using the client as a decryption oracle for the
+FHE. Indeed if the verifiable computation component is secure even in the presence of verification queries
+(e.g. the QSP-based protocol in [GGPR13]) then the acceptance/rejection decision bit of the client is not
+linked to any decryption but just to the “correct” evaluation of the EvalFHE procedure over the ciphertexts
+(which we assume to be deterministic).
+1.5 Protocols for computations over large datasets
+In the last part of the paper we deal with the following problem. Let us assume that the data a consists
+of a large dataset a = a0, a1, . . . , ad, stored at the server with with some authentication information t =
+t0, t1, . . . , td.
+Polynomials Following [BGV11] the function f consists of f(x) = A(x) =
+∑d
+i=0 aix
+i mod p, the compu-
+tation of the polynomial of degree d defined by the ai at the point x. In [BGV11] the following approach is
+proposed to efficiently verify this computation when the ai are in the clear.
+The authentication information stored by the client with the server is of the form ti = g
+c·ai+ri where
+c ← Fp, ri ← Fp is the ith coefficient of a polynomial R(·) of degree d and g is the generator of a cyclic
+group G of order p in which the discrete logarithm problem is hard. When queried on the point x the server
+returns a =
+∑d
+i=0 aix
+i and t =
+∏d
+i=0 t
+xi
+i and the client accepts a iff t = g
+c·agR(x).
+If R(·) is a random polynomial, then this is a secure delegation scheme. To avoid storing a large polynomial
+R(·) and the expensive (O(N)) computation of gR(x), the notion of closed-form efficient PRF is presented
+in [BGV11]. The value ρi = g
+ri is defined as PRFK(i) for a special form of pseudo-random function PRF
+which has the property that the computation of gR(x) can be performed in o(N) time by the party who
+knows the secret key K.
+Since the values ti reveal no information about the dataset a, in [BGV11] it is suggested that in order to
+protect the secrecy of a it is sufficient to encrypt it with an additively homomorphic encryption scheme E.
+No more details are provided in the paper, but we assume that this means setting αi = Enc(ai) and using
+the homomorphism the server returns an encryption α of a (since a is simply a linear combination of the
+ai’s with weights x
+i) and the value t as before. At that point the client would decrypt α to a′ and check
+correctness as above. Clearly this approach is subject to the verification query attack, and would require
+hiding the client decision bit (i.e. forbidding verification queries – this attack is not noted in [BGV11]).
+In Section 4.3 we construct a protocol that carries the basic ideas of [BGV11], has a fast verification phase,
+is function private, secure even under verification queries, and extends the computation to a polynomial with
+coefficients in an extension field Fpn .
+Our solution is given by modifying the protocol in [BGV11] by assuming that the values ti are authenti-
+cations of the ciphertexts αi, and that the verification check is carried out on the ciphertext α.
+We need an additively homomorphic scheme (in which additions of plaintexts are correspond to addi-
+tions of ciphertexts). Such encryption schemes exist under a variety of lattice-based assumptions, and for
+concreteness we use the scheme by Brakerski and Vaikuntanathan in [BV11].
+Linear Combinations Another specialized protocol we propose works in case a client wants to perform
+linear combinations of the values in its dataset (which is a generalization of the above scenario). More
+specifically, the client wants to compute
+∑d
+i=0 ai · wi for some weights w0, . . . , wd ∈ M – this setting is a
+generalization of the case of the evaluation of polynomials, for which wi = x
+i for x ∈ Fp.
+In [LPJY13] the case of general linear combination is considered using structure preserving cryptography.
+Their scheme also uses additively homomorphic cryptography and does not require the client to decrypt the
+result a to perform the verification check. However, their scheme is limited in many other ways (for example,
+in the specific instantiation they describe, which makes use of the encryption scheme by Boneh, Boyen, and
+Shacham [BBS04], the decryption of the value a by the client requires the computation of unknown discrete
+logarithms or an exhaustive search and therefore is efficient only for small a’s, which limits the kind of linear
+combinations one can do, and the size d of the dataset).
+General linear combinations in the model in which verification queries are not allowed can be easily
+achieved by a simpler version of the [BGV11] protocol where the value ri is computed using a regular PRF
+(i.e. closed-form efficiency is not even required). The client stores αi = Enc(ai) and the authentication
+information ti = c · ai + ri where c ← M, and ri = PRFk(i). When the client provides the weights wi,
+the server computes α such that Dec(α) =
+∑d
+i=0 ai · wi (using the homomorphic properties of Enc) and
+t =
+∑d
+i=0 ti · wi. The client decrypts α and accepts if and only if t = c · a+
+∑d
+i=0 ri · wi.
+To achieve function privacy against verification queries, we change the authentication tags to be ti =
+c · αi + ri. Now, if we use the [BV11] encryption scheme we can verify the correct evaluation of α before
+decrypting. Moreover, by using the variant of [BV11] that allows the evaluation of a single multiplication on
+encrypted data, the client can even encrypt the weights wi, i.e. hide the linear combination to be computed
+and achieve input privacy as well. In this case, the client provides ωi = Enc(wi) to the server, which uses the
+single multiplication homomorphic property to compute α such that Dec(α) = a and τ such that Dec(τ) = t.
+As we describe in detail in Section 4.2 the verification check can still be performed before decrypting, and
+therefore provides no useful decryption query to the adversary.
+We note that the client complexity here depends on the size of the weight set and on the level of
+information the client wants to hide. If the weights were sent in the clear, the client would have paid O(d˜)
+complexity where d˜ ≤ d is the number of non-zero weights. If the weights are encrypted, the client has two
+choices: he can still pay O(d˜) by simply sending the non-zero weights encrypted (and their indices). In this
+case, however, the client reveals the indices used in the linear combination (though not their values). If the
+client wants to completely hide the weights then it must pay O(d) to send a ciphertext ωi for each index.
+2 Problem Definition
+We work in the amortized model of [GGP10] where the client runs a one-time expensive phase to “outsource”
+the function f to the server (this phase can cost as much as the computation of f). Later the client queries
+the server on (an encrypted form of) input x and receives back (an encryption of) the value f(x) and a proof
+of its correctness: this phase should be efficient for the client (ideally linear in |x|+ |f(x)|).
+In [GGP10] the authors give a definition that includes both security (i.e. the client only accepts correct
+outputs) and privacy (i.e. the client’s input x is semantically secure) but does not allow verification queries
+(since the [GGP10] protocol does not tolerate them). In this Section we “upgrade” the definition by adding
+verification queries to it.
+A verifiable computation scheme VC = (KeyGen,ProbGen,Compute,Verify) consists of the four
+algorithms defined below.
+1. KeyGen(f, λ) → (PK,SK): Based on the security parameter λ, the randomized key generation algo-
+rithm generates a public key that encodes the target function f , which is used by the server to compute
+f . It also computes a matching secret key, which is kept private by the client.
+2. ProbGenSK(x) → (σx, τx): The problem generation algorithm uses the secret key SK to encode the
+function input x as a public value σx which is given to the server to compute with, and a secret value τx
+which is kept private by the client.
+3. ComputePK(σx) → σy: Using the client’s public key and the encoded input, the server computes an
+encoded version of the function’s output y = f(x).
+4. VerifySK(τx, σy) → (acc, y): Using the secret key SK and the secret “decoding” τx, the verification
+algorithm converts the server’s encoded output into a bit acc and a string y. If acc = 1 we say the client
+accepts y = f(x), if acc = 0 we say the client rejects.
+We now recall the three main properties defined in [GGP10] for a verifiable computation scheme: cor-
+rectness, security and privacy but we define them in the presence of verification queries by the adversary.
+Also, we introduce another definition, that encompasses function privacy, that is the ability of a scheme to
+hide from the server the function that it needs to compute.
+A scheme is correct if the problem generation algorithm produces values that allow an honest server to
+compute values that will verify successfully and correspond to the evaluation of f on those inputs. More
+formally:
+Definition 1 (Correctness). A verifiable computation scheme VC is correct if for any choice of function
+f , the key generation algorithm produces keys (PK,SK) ← KeyGen(f, λ) such that, for all x the domain
+of f , if (σx, τx)← ProbGenSK(x) and σy ← ComputePK(σx) then (1, y = f(x))← VerifySK(τx, σy).
+Intuitively, a verifiable computation scheme is secure if a malicious server cannot persuade the verification
+algorithm to accept an incorrect output. Below, we formalize this intuition with an experiment, where poly(·)
+is a polynomial.
+Note that the adversary A is given access to queries to the oracle PVerify which is defined as
+PVerify(τ, σ) = acc if and only if Verify(τ, σ) = (acc, y)
+In other words, PVerify is the public acceptance/rejection bit which results from a verification query.
+Experiment ExpV erifA [VC, f, λ]
+(PK,SK)← KeyGen(f, λ);
+For i = 1, . . . , ` = poly(λ);
+xi ← APVerify(τj ,·)(PK, x1, σ1, . . . , xi−1, σi−1);
+(σi, τi)← ProbGenSK(xi);
+(i, σˆy)← APVerify(τj ,·)(PK, x1, σ1, . . . , x`, σ`);
+(aˆcc, yˆ)← VerifySK(τi, σˆy)
+If aˆcc = 1 and yˆ 6= f(xi), output ‘1’, else ‘0’;
+Essentially, the adversary is given oracle access to generate the encoding of multiple problem instances,
+and to check the response of the client on arbitrary “encodings”. The adversary succeeds if it produces an
+output that convinces the verification algorithm to accept on the wrong output value for a given input value.
+We can now define the security of the system based on the adversary’s success in the above experiment.
+Definition 2 (Security). A verifiable computation scheme VC is secure for a function f , if for any adver-
+sary A running in probabilistic polynomial time,
+Pr[ExpV erifA [VC, f, λ] = 1] ≤ negl(λ). (2.1)
+We say that VC is secure if it is secure for every function f .
+Input privacy is defined based on a typical indistinguishability argument that guarantees that no infor-
+mation about the inputs is leaked. Input privacy, of course, immediately yields output privacy.
+Intuitively, a verifiable computation scheme is private when the public outputs of the problem generation
+algorithm ProbGen over two different inputs are indistinguishable; i.e. nobody can decide which encoding
+is the correct one for a given input. More formally consider the following experiment: the adversary is given
+the public key for the scheme and selects two inputs x0, x1. He is then given the encoding of a randomly
+selected one of the two inputs and must guess which one was encoded. During this process the adversary
+is allowed to request the encoding of any input he desires, and also is allowed to make verification queries
+on any input. The experiment is described below4. The oracle PProbGenSK(x) calls ProbGenSK(x) to
+obtain (σx, τx) and returns only the public part σx.
+4 In the definition when we write that APVerify we mean that A is allowed to query PVerify(τ, ·) where τ is the
+secret encoding of any of the queries made in PProbGen and τb
+Experiment ExpPrivA [VC, f, λ]
+(PK,SK)← KeyGen(f, λ);
+(x0, x1)← APVerify,PProbGenSK(·)(PK)
+(σ0, τ0)← ProbGenSK(x0);
+(σ1, τ1)← ProbGenSK(x1);
+b← {0, 1};
+bˆ← APVerify,PProbGenSK(·)(PK, x0, x1, σb)
+If bˆ = b, output ‘1’, else ‘0’;
+Definition 3 (Privacy). A verifiable computation scheme VC is private for a function f , if for any adver-
+sary A running in probabilistic polynomial time,
+Pr[ExpPrivA [VC, f, λ] = 1] ≤
+1
+2
++ negl(λ). (2.2)
+Function privacy is the requirement that the public key PK, sampled via (PK,SK) ← KeyGen(f, λ),
+does not leak information on the encoded function f , even after a polynomial amount of runs of ProbGenSK
+on adversarially chosen inputs. More formally, we define define function privacy based on an indistinguisha-
+bility experiment as follows
+Experiment ExpFPrivA [VC, λ]
+(f0, f1)← A(λ);
+b← {0, 1};
+(PK,SK)← KeyGen(fb, λ);
+For i = 1, . . . , ` = poly(λ);
+xi ← APVerify(τj ,·)(PK, x1, σ1, . . . , xi−1, σi−1);
+(σi, τi)← ProbGenSK(xi);
+bˆ← APVerify(τj ,·)(PK, x1, σ1, . . . , x`, σ`);
+If bˆ = b, output ‘1’, else ‘0’;
+Definition 4 (Function Privacy). A verifiable computation scheme VC is function private, if for any
+adversary A running in probabilistic polynomial time,
+Pr[ExpFPrivA [VC, λ] = 1] ≤
+1
+2
++ negl(λ). (2.3)
+The final condition we require from a verifiable computation scheme is that the time to encode the input
+and verify the output must be smaller than the time to compute the function from scratch.
+Definition 5 (Outsourceable). A VC can be outsourced if it permits efficient generation and efficient
+verification. This implies that for any x and any σy, the time required for ProbGenSK(x) plus the time
+required for Verify(σy) is o(T ), where T is the time required to compute f(x).
+2.1 Adaptive Security
+Here we introduce the notion of adaptive security for a verifiable computation scheme, and show that
+our constructions fulfill this definition. Intuitively, an adaptively secure scheme is a scheme that is secure
+even if the adversary chooses f after having seen many “encodings” σx for chosen values x. At first sight,
+this property is non-trivial to achieve, since not every scheme allows σx to be computed before choosing f
+(in particular schemes based on FE such as [GKP+13]). This observation leads us to first define a refined
+class of schemes, for which adaptivity is not ruled out by this restriction, and then proceed with the actual
+definition of adaptivity.
+Definition 6 (Split Scheme). Let VC = (KeyGen,ProbGen,Compute,Verify) be a verifiable compu-
+tation scheme. We say that VC is a split scheme if the following conditions hold:
+– There exist PPT algorithms KeyGenE(λ) and KeyGenV (f, λ) such that if (PK,SK)← KeyGen(f, λ)
+then PK = (PKE , PKV ) and SK = (SKE , SKV ) such that KeyGen
+E(λ) → (PKE , SKE) and
+KeyGenV (f, λ)→ (PKV , SKV );
+– There exist PPT algorithms ProbGenESKE (x) and ProbGen
+V
+SKV (x) such that if (σx, τx)← ProbGenSKE ,SKV (x)
+then σx = σ
+E
+x ← ProbGenESKE (x) and τx = τVx ← ProbGenVSKV (x)
+Notice that for a split scheme one can generate valid values σx for any function f to be delegated before
+knowing f , since σx is independent of f . This can be done by running (PKE , SKE) ← KeyGenE(λ),
+and setting σx ← ProbGenESKE (x) before knowing f . The validity of this encoding applies for all keys
+(PK,SK) = (PKE , PKV , SKE , SKV ) where (PKV , SKV )← KeyGenV (f, λ) for any f .
+We can now describe the experiment that will be used to define adaptive security for split schemes:
+Experiment ExpAdap−V erifA [VC, λ]
+(PKE , SKE)← KeyGenE(λ);
+For i = 1, . . . , `′ = poly′(λ):
+x′i ← A(PKE , x′1, σ′1, . . . , x′i−1, σ′i−1);
+σ′i ← ProbGenESKE (x);
+f ← A(x′1, σ′1, . . . , x′`′ , σ′`′);
+(PKV , SKV )← KeyGenV (f, λ);
+(PK,SK)← (PKE , PKV , SKE , SKV );
+For i = 1, . . . , ` = poly(λ):
+xi ← APVerify(τj ,·)(PK, x1, σ1, . . . , xi−1, σi−1);
+(σi, τi)← ProbGenSK(xi);
+(i, σˆy)← APVerify(τj ,·)(PK, x1, σ1, . . . , x`, σ`);
+(aˆcc, yˆ)← VerifySK(τi, σˆy);
+If aˆcc = 1 and yˆ 6= f(xi), output ‘1’, else ‘0’.
+Definition 7 (Adaptive Security). A split scheme VC is adaptively secure, if for any adversary A running
+in probabilistic polynomial time,
+Pr[ExpAdap−V erifA [VC, λ] = 1] ≤ negl(λ). (2.4)
+We point out that a particular instantiation of our generic scheme is split: consider the case in which
+the VC component of our generic solution is implemented using a SNARK (e.g. any of the protocols in
+[BCCT12b,GGPR13,PHGR13,BSCG+13]). In those protocols basically τx can be “empty” (as many of those
+protocols are publicly verifiable). As a consequence our generic protocol in this case is split (the encoding of
+x is just an FHE encryption of x, the secret key SK the decryption key for the FHE scheme).
+Once we have a split scheme, our generic scheme can be easily proven to be adaptively secure along the
+lines of the proof of Theorem 1.
+3 A Generic Solution
+In this section we describe our generic solution to outsource computation over encrypted data. As we discussed
+in the introduction we assume the existence of a FHE scheme, with a deterministic evaluation procedure (all
+known schemes have this property). We also need an efficiently verifiable scheme to outsource the computation
+of a function f over data a, sent to the server in the clear, which is secure even in the presence of verification
+queries. The latter can be achieved using a variety of schemes, e.g. [GGPR13,GLR11,BCCT12a,BCCT12b]
+The protocol encrypts the data a with an FHE scheme: Ca = FHE(a). It then runs a protocol for the
+verifiable outsourcing not of f but of the function F (·) = EvalFHE(f, ·), which is a circuit that takes Ca as
+input and outputs an element C that decodes to f(a).
+We note that this approach prevents the adversary from using the client as a decryption oracle for the
+FHE. Indeed if the verifiable computation component is secure even in the presence of verification queries
+then the acceptance/rejection decision bit of the client is not linked to any decryption but just to the
+“correct” evaluation of the EvalFHE procedure over the ciphertexts (which we assume to be deterministic).
+3.1 Homomorphic Encryption
+A fully homomorphic (public-key) encryption (FHE) scheme is a quadruple of PPT algorithms
+HE = (HE.KeyGen,HE.Enc,HE.Dec,HE.Eval) defined as follows.
+– HE.KeyGen(λ) → (pk, evk, sk): Outputs a public encryption key pk, a public evaluation key evk and a
+secret decryption key sk.
+– HE.Encpk(b)→ c: Encrypts a bit b ∈ {0, 1} under public key pk. Outputs ciphertext c.
+– HE.Decsk(c)→ b: Decrypts ciphertext c using sk to a plaintext bit b ∈ {0, 1}.
+– HE.Evalevk(g, c1, . . . , ct) → c∗: The deterministic evaluation algorithm takes the evaluation key evk, a
+boolean circuit g : {0, 1}t → {0, 1}, and a set of t ciphertexts c1, . . . , ct. It outputs the result ciphertext
+c∗.
+An FHE should also satisfy the following properties.
+Encryption Correctness. For all b ∈ {0, 1} we have:
+Pr [HE.Decsk(HE.Encpk(b)) = b | (pk, evk, sk)← HE.KeyGen(λ)] = 1
+Evaluation Correctness. For any (pk, evk, sk) in the support of HE.KeyGen(λ), any ciphertexts c1, . . . , ct such
+that HE.Decsk(ci) = bi ∈ {0, 1}, and any circuit g : {0, 1}t → {0, 1} we have
+HE.Decsk(HE.Evalevk(g, c1, . . . , ct)) = g(b1, . . . , bt).
+Succinctness. We require that the ciphertext-size is always bounded by some fixed polynomial in the security
+parameter, and is independent of the size of the evaluated circuit or the number of inputs it takes. That
+is, there exists some polynomial p(·) such that, for any (pk, evk, sk) in the support of HE.KeyGen(λ), the
+output-size of HE.Encpk(·) and of Evalevk(·) is bounded by p(n), for any choice of their inputs.
+Semantic Security. Lastly, an FHE should satisfy the standard notion of semantic security for public-key
+encryption, where we consider the evaluation key evk as a part of the public key. That is, for any PPT
+attacker A we have:
+|Pr [A(λ, pk, evk, c0) = 1]− Pr [A(λ, pk, evk, c1) = 1]| ≤ negl(λ)
+where the probability is over (pk, evk, sk)← KeyGen(λ), {cb ← HE.Encpk(b)}b∈{0,1}, and the coins of A.
+3.2 The Scheme
+Let HE = (HE.KeyGen,HE.Enc,HE.Dec,HE.Eval) be an FHE scheme as defined above.
+Also let VC = (KeyGen,ProbGen,Compute,Verify) be a verifiable computation scheme which is correct,
+secure, and outsourceable, as defined in Section 2. In particular note that VC needs not to be private, and
+that the security is guaranteed in the presence of verification queries.
+We now describe a new verifiable computation scheme PVC (for private VC) which uses the above two
+tools. PVC = (PKeyGen,PProbGen,PCompute,PVerify) defined as follows.
+1. PKeyGen(f, λ)→ (PKP , SKP ): it first runs HE.KeyGen(λ) to generate (pk, sk, evk) for the FHE scheme
+HE.
+Let evalf be the function that takes as input HE.Encpk(x) and outputs HE.Encpk(f(x)). Given pk, evk this
+function is efficiently computable (given that HE is an FHE), therefore we can run KeyGen(evalf , λ)
+to generate the PK,SK for VC.
+It sets PKP = (PK, pk, evk) and SKP = (PKP , SK, sk).
+2. PProbGenSKP (x)→ (σx, τx): It first computes Cx = HE.Encpk(x), and then it runs ProbGenSK(Cx)
+to get (σx, τx)
+3. PComputePKP (σx)→ σy: It runs ComputePK(σx) to compute σy. Note that since we are outsourcing
+the function evalf the value σy should be an encoding of Cy = HE.Evalevk(f, Cx) = HE.Encpk(y = f(x))
+4. PVerifySKP (τx, σy)→ (acc, y): Run VerifySK(τx, σy) to get (acc, C). If acc = 0 then reject. If acc = 1
+then decrypt y = HE.Decsk(C).
+Theorem 1. If HE is a semantically secure FHE, and VC is a correct, secure and outsourceable verifiable
+computation scheme (as defined in Section 2 i.e. in the presence of verification queries), then PVC is a
+correct, secure, outsourceable and private verifiable computation scheme (as defined in Section 2 i.e. in the
+presence of verification queries)
+Proof. (Sketch) Correctness of PVC follows from the correctness of HE and VC. Similarly the fact that VC
+is secure and outsourceable implies the same properties for PVC.
+The one thing to argue then is privacy for PVC, and we prove that from the semantic security of HE. In
+other words we show that if an adversary A can learn any information about the input x to PProbGen in
+PVC then we can use A to break the semantic security of HE.
+Let us assume then that there exists A, f such that
+Pr[ExpPrivA [VC, f, λ] = 1] ≥ ζ
+where ζ = ζ(λ) is non-negligible in λ. We build a simulator S which is allowed to query A as an oracle and
+such that ∣∣Pr [SA(λ, pk, evk, c0) = 1]− Pr [SA(λ, pk, evk, c1) = 1]∣∣ ≥ ζ
+where the probability is over (pk, evk, sk)← KeyGen(λ), {cb ← HE.Encpk(b)}b∈{0,1}, and the coins of S.
+On input pk, evk, cb the simulator S runs as follows:
+1. Run KeyGen(evalf , λ) to generate the PK,SK for VC on evalf . It sets PKP = (PK, pk, evk).
+2. Run A on PKP . Remember that in this step A is allowed two types of queries:
+– Queries to PProbGen which S can answer since it knows the public key pk of HE and the secret
+key SK of VC
+– Queries to PVerify which S can also answer since it knows the secret key SK of VC. Remember
+that PVerify returns only the acceptance/rejection bit acc which S can calculate using only SK.
+The secret key sk of HE (which S does not have) is not needed to answer these queries.
+3. At some point A outputs two inputs x0 6= x1. Let us assume for now that x0 and x1 differ in a single
+bit, for example the first. We will show later how to get rid of this assumption by a standard hybrid
+argument. So let’s assume that x0 starts with 0 and x1 starts with 1.
+S will construct Cxb by concatenating cb with the encryptions of all the other bits (which S can compute
+using pk).
+S will finish to run ProbGen on xb, to compute σxb , τxb and returns σxb to A. This part requires only
+knowledge of SK so S can simulate it.
+4. A will continue running and making queries to PProbGen and PVerify which the simulator will be
+able to answer as above.
+5. Finally A outputs a bit bˆ which is equal to b with probability 1/2 + ζ. S outputs the same bit, and
+therefore S will also be correct with probability 1/2 + ζ.
+To finish the proof we need to remove the assumption we made on the behavior of A in step 3. Let us as-
+sume that x0, x1 ∈ {0, 1}n and set xb = [xb,1xb,2 . . . xb,n]. Define the string x(j) = [x1,1x1,2 . . . x1,jx0,j+1 . . . x0,n],
+so x(0) = x0 and x
+(n) = x1.
+If A distinguishes between x0 and x1 with advantage ζ then by a standard hybrid argument there must
+exists a j such that A distinguishes between x(j−1) and x(j) with advantage at least ζ/n. Notice that in order
+to be the case we must have x0,j 6= x1,j . The proof then continues with S guessing the bit j and placing the
+challenge ciphertext cb in position j of the ciphertext Cxb sent to A. S will still guess the correct bit with
+non-negligible advantage.
+3.3 Hiding the Function
+We point out that by outsourcing the universal circuit computing functions of a given size, we can hide not
+only the input data, but also the function being computed, so our scheme can be compiled into one which is
+also function private, according to definition 4, and without a significant loss in performance.
+4 Ad-Hoc Solutions
+In this section we describe two more efficient solutions, in case the function to evaluate on the dataset is of
+a specific form (linear functions and evaluations of polynomials).
+4.1 Tools
+For our concrete construction we use the somewhat homomorphic encryption scheme by Brakerski and
+Vaikuntanathan described in [BV11], based on the hardness of the polynomial learning with error problem,
+and we specialize it to evaluate circuits of multiplicative depth one on encrypted data. The specifications of
+the encryption scheme are as follows:
+– BV.ParamGen(λ): The message space M is the ring Rp := Fp[X]/F (X), where F (X) is a polynomial in
+Fp[X] of degree n. In the following we choose p and F (X) such that F (X) is irreducible in Fp[X], so
+that Rp is isomorphic to Fpn (as a field). Operations in M are denoted with + for addition and · for
+polynomial multiplication modulo F (X). The homomorphic properties of the scheme are over Rp. We
+choose to represent elements in M as elements in Zn with infinity norm bounded by p/2.
+The ciphertext space is determined as follows: pick a large integer q which is co-prime to p (for the choice
+of q we rely on the analysis done in [BV11], Section 2), and define Rq := Fq[X]/F (X). In practice, we
+consider plaintexts to be in Rq, when performing encryption and decryption (so computing arbitrary
+circuits on encrypted data may cause overflows and yield incorrect decryption). The ciphertext space C
+is defined as C := R3q , and operations on ciphertexts are defined as follows:
+(a0, a1, a2) + (b0, b1, b2) := (a0 + b0, a1 + b1, a2 + b2),
+(a0, a1, 0) (b0, b1, 0) := (a0 · b0, a1 · b0 + b1 · a0, a1 · b1).
+Notice that  (multiplication of ciphertexts) is defined only for ciphertexts where the last entry equals
+zero.
+Finally, the algorithm defines DZn,σ, the discrete Gaussian with parameter σ: it is the random variable
+over Zn obtained from sampling x ∈ Rn with probability e−pi·‖x‖2/σ2 and then rounding at the nearest
+lattice point. Again, we refer to [BV11] for the specific choice of σ. In the following, we assume that the
+parameters generated here are inputs of any subsequent algorithm.
+– BV.KeyGen()→ (pk, sk): The key-generation algorithm samples a← Rq, and s, e← DZn,σ. Considering
+s and e as elements in Rq, it computes b← a · s+ p · e, and sets sk← s and pk← (a, b).
+– BV.Encpk(m, r) → (c0, c1, c2): Given m ∈ Rp, and r ←
+(
+DZ3·n,σ mod q
+)
+, the message m is parsed as an
+element in Rq with infinity norm bounded by p/2, and the randomness r is parsed as r = (u, v, w) ∈ R3q .
+The output is c = (c0, c1, 0) ∈ R3q , where c0 ← b · v + p · w +m and c1 ← a · v + p · u.
+– BV.Decsk(c0, c1, c2) → t mod p: The algorithm computes an element t ∈ Rq as t ← c0 − s · c1 − s2 · c2.
+The output is then t mod p, which is interpreted as an element in Rp.
+Lemma 1 ([BV11], Lemma 4; and [BV11], Theorem 2).
+For D = 1, 2, the public-key encryption scheme (BV.ParamGen,BV.KeyGen,BV.Enc,BV.Dec), specified above,
+is semantically secure under the PLWE assumption, and it allows the computation of any polynomial f of
+degree D such that
+‖f‖∞ ·
+(
+p · σ · n1.5)D ≤ q/2.
+We also assume the existence of a keyed pseudorandom function PRF with image in Rq.
+4.2 Linear Combinations
+We are now ready to show a scheme for delegated computation on encrypted data, in case the secret function
+to be computed is linear and over Rp, i.e. f is described by values a0, . . . ad ∈ Rp, the input is represented
+by weights w0, . . . , wd ∈ Rp, and the output is
+∑d
+i=0 ai · wi.
+The scheme VCLC is specified as follows:
+1. KeyGen(f = a0, . . . ad, λ)→ (PK,SK):
+– it runs BV.ParamGen(λ), (pk, sk)← BV.KeyGen(),
+– it samples a uniform MAC key c← Rq, and a key k for PRF,
+– it computes ri ← PRFk(2 · i), si ← PRFk(2 · i+ 1), it defines ρi ← (ri, si, 0),
+– it computes αi ← BV.Encpk(ai), and τi ← c · αi + ρi,
+– it sets PK = (pk, α0, τ0, . . . , αd, τd) and SK = (pk, sk, c, k).
+2. ProbGenSK(x = w0, . . . , wd)→ σx, τx: for i = 0, . . . , d
+– if σx, τx are not yet defined, it sets σx as a vector with zero entries, and τx ← 0 ∈ R3q ,
+– it computes ωi ← BV.Encpk(wi),
+– it computes ri ← PRFk(2·i), si ← PRFk(2·i+1), it defines ρi ← (ri, si, 0), as in the keygen algorithm,
+– it sets σx = σx, ωi,
+– it sets τx = τx + ρi  ωi.
+3. ComputePK(σx = ω0, . . . , ωd)→ σy:
+– it computes α←∑di=0 αi  ωi, and τ ←∑di=0 τi  ωi,
+– sets σy = α, τ
+4. VerifySK(τx, σy = α, τ) → (acc, a′): If τ 6= c · α + τx, it rejects. Otherwise, it accepts and computes
+a′ ← BV.Decsk(α).
+Theorem 2. The scheme VCLC is correct, adaptively secure, function private, input private.
+Proof. For correctness, if both the client and the server are honest, the client accepts; using the fact that 
+distributes over + in the co-domain of BV.Encpk, the following holds:
+τ =
+d∑
+i=0
+τi  ωi =
+d∑
+i=0
+(c · αi + ρi) ωi =
+d∑
+i=0
+c · αi  ωi +
+d∑
+i=0
+ρi  ωi = c · α+ τx,
+so the check at the verification step passes. Moreover, the output a′ is the desired one, since it equals:
+BV.Decsk(α) = BV.Decsk
+(
+d∑
+i=0
+αi  ωi
+)
+= BV.Decsk
+(
+d∑
+i=0
+BV.Encpk(ai)  BV.Encpk(wi)
+)
+=
+d∑
+i=0
+ai · wi.
+For adaptive security, we show firstly that the scheme is split: define PKE = SKE = pk, and notice that
+σx consists of the ωi = BV.Encpk(wi), which are independent of f . Therefore, in the security experiment the
+challenger can answer the encoding queries before the adversary choses the function to attack on. At that
+point the challenger computes the remaining part of the public and secret key. Now, notice that the value c
+is statistically hidden to the server, because the entries of τi that depend on c (i.e. the first and the second
+entry) are masked by the corresponding uniform entry of ρi (resp. ri, si). Now, for the sake of contradiction,
+suppose that a server could provide α′, τ ′ with α′ 6= α such that the verification passes. This would imply
+that τ ′ = c · α′ + ∑di=0 ρi  ωi, and that τ ′ − τ = c · (α′ − α). Therefore, the server could compute c in
+polynomial time, by dividing (as an operation in Rq) the jth coordinate of τ
+′ − τ by the jth coordinate of
+α′ − α. Though, computing c in polynomial time is impossible, as argued earlier, so a cheating server would
+succeed with negligible probability.
+To show function privacy we argue that a simulator that does not know the function (or the secret key
+for the encryption scheme) can provide a transcript that is computationally close to the one provided by the
+honest client, therefore there is no information of the function revealed to the server. The simulator runs as
+follows: It runs KeyGen honestly, but for all i it sets αi = BV.Encpk(0), instead. It runs ProbGen honestly,
+(which is possible since SK is independent of the function), and finally it runs Verify honestly (and does
+not need to perform the final decryption step). Since the encryption scheme is semantically secure, by a
+standard hybrid argument the server is provided with a transcript that is computationally indistinguishable
+from the honest one.
+Input privacy can be argued in a similar way: it is guaranteed by the fact that the verification check is
+independent of the encoded values (therefore it does not reveal any information on the encrypted values)
+and all the other information about the secret weights given to the server is encrypted using a semantically
+secure encryption scheme, therefore a server cannot distinguish between a run with the real input and a run
+with dummy input.
+In the above scheme we assume that the input to ProbGen is given in the so-called “streaming model”,
+i.e. the wi are generated in rounds and at each round ProbGen is called: this means that the vector σx is
+created at round 0 and sent to the server; then, at round i, it is updated by adding ωi and ωi is sent to the
+server. Analogously, τx is created and stored by the client at round 0 and at round i it is updated by adding
+ρi  ωi. This allows the client to work with a short memory: indeed creating and sending the ωi requires
+O(log(q)) storage, as well as creating, updating and storing τx.
+Moreover, as pointed out in the introduction, in case of a sparse linear combination, the client has two
+choices for the communication complexity: he can pay O(d˜) by simply sending the non-zero weights encrypted
+(and their indices); however, he reveals the indices used in the linear combination (though not their values).
+If the client wants to completely hide the weights then it must pay O(d) to send a ciphertext ωi for each
+index, as in the standard scheme.
+4.3 Polynomials
+We now look at a more specific task, which is to perform the verifiable computation of functions for which
+wi = x
+i for a value x ∈ Fp that does not need to be private.
+Our solution is given by “blending” our scheme VCLC with the result in [BGV11], as follows: we modify
+the scheme in [BGV11] by assuming that the values ti are authentications of the ciphertexts αi, and that
+the verification check is carried out on the ciphertext α.
+We use, again, the scheme in [BV11], but in this case we do not need its full power: we only make
+use of its additive homomorphic property, and apply the technique of [BGV11] on each component of the
+ciphertexts αi, and verify the ciphertext output by the server component-wise. Again, acceptance or rejection
+by the client depends only on the correct execution by the server of the computation assigned to it over the
+ciphertexts. No useful decryption query is performed.
+To be more formal, we assume that (as in [BGV11]) the client and the server agreed on a group G of
+prime order q in which the discrete logarithm problem is hard, and on a generator g for G.5
+Now, as in the previous section, we use the [BV11] scheme, but in this case we only need its addi-
+tively homomorphic property, so the ciphertext space is now (Rq)
+2 (the last coordinate of the ciphertexts
+is superfluous), which, as an additive group is isomorphic to (Fq)2n. This observation is useful, because it
+allows to “encode” elements in the ambient space of the ciphertexts as discrete logarithms in G, as follows:
+for ζ ∈ (Fq)2n, we define gζ := (gζ1 , . . . , gζ2n) ∈ G2n. With this notation, we extend the operation of G
+coordinate-wise to G2n. This is the main observation to implant the solution of [BGV11] into our scheme.
+Before the specifications of the scheme, we shall make a final observation: due to the noise growth of the
+[BV11] scheme summarized in Theorem 1 (for D = 1), in order to achieve correctness of the result to be
+decoded by the client, we need q larger than 2 · pd+1 · σ · n1.5 (the factor pd on the right-hand side of the
+inequality is an upper bound on the norm of xd).
+The scheme VCpoly is specified as follows:
+1. KeyGen(f = a0, . . . , ad, λ)→ (PK,SK):
+– it runs BV.ParamGen(λ), (pk, sk)← BV.KeyGen(),
+– it specifies a group (G, ·) of order q and a generator g,
+– it samples a uniform MAC key c← Fq, uniform κ, ζ ← (Rq)2,
+– it computes αi ← BV.Encpk(ai), τi ← c · αi + ζ∗Fq i ∗Fq κ,6 Gτ,i ← gτi ,
+– it sets PK = (pk, G, g, α0, Gτ,0, . . . , αd, Gτ,d) and SK = (pk, G, g, sk, c, ζ, κ).
+2. ProbGenSK(x)→ σx, τx:
+– it sets σx = x, and τx = x.
+3. ComputePK(σx = x)→ σy:
+– it computes α←∑di=0 xi · αi, and Gτ ←∏di=0Gxiτ,i,
+– sets σy = α,Gτ
+5 In this section q is assumed to be a prime, while it was previously only assumed to be an integer co-prime to p.
+6 For any pair of vectors η, θ over Fq, we denote by η ∗Fq θ the Schur (or Hadamard, or coordinate-wise) prouct of η
+with θ (over Fq), that is the vector whose ith coordinate equals ηi · θi. Notice that (Rq)2 is a vector space over Fq
+– indeed (Rq)
+2 ∼= F2nq – so the operation is well defined for elements in (Rq)2.
+4. VerifySK(σy = α,Gτ , τx = x)→ (acc, a′):
+– it computes the element µ in (Rq)
+2 ∼= F2·nq such that for j = 1, . . . , 2 · n:
+µj =
+(
+(x · ζj)d+1 − 1
+) · (x · ζj − 1)−1 ,
+– If Gτ 6= (gα)c · (gκ)∗Fqµ, it rejects. Otherwise, it accepts and computes a′ ← BV.Decsk(α).
+Theorem 3. The scheme VCpoly is correct, adaptively secure, and function private.
+Proof. For correctness, when both the client and the server are honest the verification step passes, because
+of the following reasoning. Notice that:
+Gτ =
+d∏
+i=0
+Gx
+i
+τ,i =
+d∏
+i=0
+(gτi)
+xi
+= g
+∑d
+i=0 τi·xi = g
+∑d
+i=0
+(
+c·αi+ζ∗Fq i∗Fqκ
+)
+·xi
+=
+= gc·
+∑d
+i=0 αi·xi+
+∑d
+i=0 ζ
+∗Fq i∗Fqκ·xi = gc·α · gκ∗Fq
+∑d
+i=0(ζ·x)
+∗Fq i
+Also for j = 1, . . . , 2 · n:(
+d∑
+i=0
+(ζ · x)∗Fq i
+)
+j
+=
+d∑
+i=0
+(ζj · x)i =
+d∑
+i=0
+(
+(x · ζj)d+1 − 1
+) · (x · ζj − 1)−1 = d∑
+i=0
+µj ,
+so
+∑d
+i=0 (ζ · x)∗Fq i = µ. Therefore
+gc·α · gκ∗Fq
+∑d
+i=0(ζ·x)
+∗Fq i
+= gc·α · gκ∗Fqµ = (gα)c · (gκ)∗Fqµ .
+In the above notice that all the values written in Greek letters are elements in (Rq)
+2 (therefore vectors over
+Fq), while all the values in Latin letters are scalars in Fq. This is important since all the sums and products
+at the exponent should be “compatible” with the group structure of G, which is of order q. In other words,
+the above formulas make sense because the additive group associated with each value at the exponent is
+(Fq,+), which is isomorphic to (G, ·).
+Moreover, the client retrieves the correct value of the computation, because
+BV.Decsk(α) = BV.Decsk
+(
+d∑
+i=0
+αi · xi
+)
+= BV.Decsk
+(
+d∑
+i=0
+BV.Encpk(ai) · xi
+)
+=
+d∑
+i=0
+ai · xi.
+Notice that the bound on x makes the last equality hold, since that bound respects the inequality in Theorem
+1 (for D = 1).
+For adaptive security, notice that σx = x, therefore the scheme is split. Moreover, its adaptive security
+property reduces to standard security, as the adversary has full knowledge on the encodings that can be
+queried in the adaptive game, even before seeing the public key of the verification scheme. Regular security
+can be proven in a game-based fashion, using a similar approach to the one in [BGV11], Section 5.2. We give
+a sketch here:
+– Define Game0 as the experiment in Definition 1.
+– Define Game1 as Game1, but in which in the verification the value µ is computed via µ←
+∑d
+i=0 (ζ · x)∗Fq i.
+– Define Game2 as Game1, but replacing the value ζ
+∗Fq i ∗Fq κ by a uniform νi ← (Rq)2.
+As in [BGV11], the change between Game1 and Game0 is merely syntactical, so the advantage of a cheating
+server is the same. Moreover, the advantage of a cheating prover in Game2 is negligibly close to the one in
+Game1: we will show it by proving that the function ϕκ,ζ : i 7→ gζ
+∗Fq i∗Fqκ is a pseudorandom function (based on
+the Strong Diffie-Helmann assumption), for uniform κ, ζ ∈ (Rq)2. Notice first that ϕκ,ζ outputs vectors (over
+Fq) whose entries are independently distributed, as (ϕκ,ζ(i))j = g
+ζij ·κj depends only on the jth coordinate
+of ζ and κ, whose respective coordinates are sampled independently. Therefore, the pseudorandomness of
+ϕκ,ζ is granted by a standard hybrid argument, given that (ϕκ,ζ(·))j is an algebraic pseudorandom function,
+based on the Strong Diffie-Helmann assumption.
+Function privacy is guaranteed by a reduction to the semantic security of the scheme, similar to the
+reduction done in the proof of Theorem 2.
+A possible application of the above protocol is to perform keyword search: specifically, let F = (W1, . . . ,Wd)
+be a file consisting of d words Wi. Let H be an injective function that maps “searchable” words Wj to in-
+tegers of norm bounded by B. A client can encode F as the polynomial
+∏d
+i=0 (X −H(Wi)) and use its
+coefficients as the input to our protocol. Notice that this polynomial evaluates to zero only at those points
+that correspond (via H) to words in F , so in order to search for a word W the client can set x← H(W ) and
+send it to the server which performs the evaluation of the polynomial. When the client decodes the answer
+y, after the verification, it interprets y = 0 as “W is in F” and y 6= 0 as “W is not in F”.
+Acknowledgments
+The authors would like to thank Dario Fiore and Vinod Vaikuntanathan for useful discussions and sugges-
+tions.
+The research of Rosario Gennaro was sponsored by the U.S. Army Research Laboratory and the U.K. Ministry
+of Defense and was accomplished under Agreement Number W911NF-06-3-0001. The views and conclusions
+contained in this document are those of the author(s) and should not be interpreted as representing the
+official policies, either expressed or implied, of the U.S. Army Research Laboratory, the U.S. Government,
+the U.K. Ministry of Defence or the U.K. Government. The U.S. and U.K. Governments are authorized to
+reproduce and distribute reprints for Government purposes notwithstanding any copyright notation hereon.
+The research of Valerio Pastro was supported by NSF Grant No.1017660
+References
+[AIK10] Benny Applebaum, Yuval Ishai, and Eyal Kushilevitz. From secrecy to soundness: Efficient verification
+via secure computation. In ICALP (1), pages 152–163, 2010.
+[AS92] Sanjeev Arora and Shmuel Safra. Probabilistic checking of proofs; a new characterization of np. In FOCS,
+pages 2–13. IEEE Computer Society, 1992.
+[Bab85] La´szlo´ Babai. Trading group theory for randomness. In Robert Sedgewick, editor, STOC, pages 421–429.
+ACM, 1985.
+[BBS04] Dan Boneh, Xavier Boyen, and Hovav Shacham. Short group signatures. In Matthew K. Franklin, editor,
+CRYPTO, volume 3152 of Lecture Notes in Computer Science, pages 41–55. Springer, 2004.
+[BCCT12a] Nir Bitansky, Ran Canetti, Alessandro Chiesa, and Eran Tromer. From extractable collision resistance to
+succinct non-interactive arguments of knowledge, and back again. In Goldwasser [Gol12], pages 326–349.
+[BCCT12b] Nir Bitansky, Ran Canetti, Alessandro Chiesa, and Eran Tromer. Recursive composition and
+bootstrapping for snarks and proof-carrying data. IACR Cryptology ePrint Archive, 2012.
+http://eprint.iacr.org/2012/095.
+[BFL90] La´szlo´ Babai, Lance Fortnow, and Carsten Lund. Non-deterministic exponential time has two-prover
+interactive protocols. In FOCS, pages 16–25. IEEE Computer Society, 1990.
+[BFLS91] La´szlo´ Babai, Lance Fortnow, Leonid A. Levin, and Mario Szegedy. Checking computations in poly-
+logarithmic time. In Cris Koutsougeras and Jeffrey Scott Vitter, editors, STOC, pages 21–31. ACM,
+1991.
+[BGV11] Siavosh Benabbas, Rosario Gennaro, and Yevgeniy Vahlis. Verifiable delegation of computation over large
+datasets. In Rogaway [Rog11], pages 111–131.
+[BGV12] Zvika Brakerski, Craig Gentry, and Vinod Vaikuntanathan. (leveled) fully homomorphic encryption
+without bootstrapping. In Goldwasser [Gol12], pages 309–325.
+[BHR12] Mihir Bellare, Viet Tung Hoang, and Phillip Rogaway. Foundations of garbled circuits. In ACM Confer-
+ence on Computer and Communications Security, pages 784–796, 2012.
+[Bra12] Zvika Brakerski. Fully homomorphic encryption without modulus switching from classical gapsvp. In
+Reihaneh Safavi-Naini and Ran Canetti, editors, CRYPTO, volume 7417 of Lecture Notes in Computer
+Science, pages 868–886. Springer, 2012.
+[BSCG+13] Eli Ben-Sasson, Alessandro Chiesa, Daniel Genkin, Eran Tromer, and Madars Virza. Snarks for c:
+Verifying program executions succinctly and in zero knowledge. In CRYPTO, volume 8043 of Lecture
+Notes in Computer Science, pages 90–108. Springer, 2013.
+[BSW11] Dan Boneh, Amit Sahai, and Brent Waters. Functional encryption: Definitions and challenges. In TCC,
+volume 6597 of Lecture Notes in Computer Science, pages 253–273. Springer, 2011.
+[BV11] Zvika Brakerski and Vinod Vaikuntanathan. Fully homomorphic encryption from ring-lwe and security
+for key dependent messages. In Rogaway [Rog11], pages 505–524.
+[CKV10] Kai-Min Chung, Yael Tauman Kalai, and Salil P. Vadhan. Improved delegation of computation using
+fully homomorphic encryption. In CRYPTO, volume 6223 of Lecture Notes in Computer Science, pages
+483–501. Springer, 2010.
+[CMT12] Graham Cormode, Michael Mitzenmacher, and Justin Thaler. Practical verified computation with stream-
+ing interactive proofs. In Innovations in Theoretical Computer Science – ITCS, pages 90–112. ACM, 2012.
+[Gen09] Craig Gentry. Fully homomorphic encryption using ideal lattices. In Michael Mitzenmacher, editor,
+STOC, pages 169–178. ACM, 2009.
+[Gen10] Craig Gentry. Toward basing fully homomorphic encryption on worst-case hardness. In Rabin [Rab10],
+pages 116–137.
+[GGH+13] Sanjam Garg, Craig Gentry, Shai Halevi, Mariana Raykova, Amit Sahai, and Brent Waters. Candidate
+indistinguishability obfuscation and functional encryption for all circuits. In FOCS, pages 40–49, 2013.
+[GGP10] Rosario Gennaro, Craig Gentry, and Bryan Parno. Non-interactive verifiable computing: Outsourcing
+computation to untrusted workers. In Rabin [Rab10], pages 465–482.
+[GGPR13] Rosario Gennaro, Craig Gentry, Bryan Parno, and Mariana Raykova. Quadratic span programs and
+succinct nizks without pcps. In Thomas Johansson and Phong Q. Nguyen, editors, EUROCRYPT,
+volume 7881 of Lecture Notes in Computer Science, pages 626–645. Springer, 2013.
+[GH11] Craig Gentry and Shai Halevi. Implementing gentry’s fully-homomorphic encryption scheme. In Ken-
+neth G. Paterson, editor, EUROCRYPT, volume 6632 of Lecture Notes in Computer Science, pages
+129–148. Springer, 2011.
+[GHS12] Craig Gentry, Shai Halevi, and Nigel P. Smart. Fully homomorphic encryption with polylog overhead.
+In David Pointcheval and Thomas Johansson, editors, EUROCRYPT, volume 7237 of Lecture Notes in
+Computer Science, pages 465–482. Springer, 2012.
+[GKP+13] Shafi Goldwasser, Yael Tauman Kalai, Raluca A. Popa, Vinod Vaikuntanathan, and Nickolai Zeldovich.
+Reusable garbled circuits and succinct functional encryption. In STOC, pages 555–564, 2013.
+[GKR08] Shafi Goldwasser, Yael Tauman Kalai, and Guy N. Rothblum. Delegating computation: interactive proofs
+for muggles. In Cynthia Dwork, editor, STOC, pages 113–122. ACM, 2008.
+[GLR11] Shafi Goldwasser, Huijia Lin, and Aviad Rubinstein. Delegation of computation without rejection problem
+from designated verifier CS-proofs. IACR Cryptology ePrint Archive, 2011:456, 2011.
+[GMR89] Shafi Goldwasser, Silvio Micali, and Charles Rackoff. The knowledge complexity of interactive proof
+systems. SIAM J. Comput., 18(1):186–208, 1989.
+[Gol12] Shafi Goldwasser, editor. Innovations in Theoretical Computer Science 2012, Cambridge, MA, USA,
+January 8-10, 2012. ACM, 2012.
+[Gro10] Jens Groth. Short pairing-based non-interactive zero-knowledge arguments. In ASIACRYPT, pages
+321–340, 2010.
+[Kil92] Joe Kilian. A note on efficient zero-knowledge proofs and arguments (extended abstract). In S. Rao
+Kosaraju, Mike Fellows, Avi Wigderson, and John A. Ellis, editors, STOC, pages 723–732. ACM, 1992.
+[Kil95] Joe Kilian. Improved efficient arguments (preliminary version). In Don Coppersmith, editor, CRYPTO,
+volume 963 of Lecture Notes in Computer Science, pages 311–324. Springer, 1995.
+[Lip12] Helger Lipmaa. Progression-free sets and sublinear pairing-based non-interactive zero-knowledge argu-
+ments. In TCC, volume 7194 of Lecture Notes in Computer Science, pages 169–189. Springer, 2012.
+[LPJY13] Benoˆıt Libert, Thomas Peters, Marc Joye, and Moti Yung. Linearly homomorphic structure-preserving
+signatures and their applications. In Ran Canetti and Juan A. Garay, editors, CRYPTO (2), volume
+8043 of Lecture Notes in Computer Science, pages 289–307. Springer, 2013.
+[Mic94] Silvio Micali. Cs proofs (extended abstracts). In FOCS, pages 436–453. IEEE Computer Society, 1994.
+[PHGR13] Bryan Parno, Jon Howell, Craig Gentry, and Mariana Raykova. Pinocchio: Nearly practical verifiable
+computation. In IEEE Symposium on Security and Privacy, pages 238–252. IEEE Computer Society,
+2013.
+[PRV12] Bryan Parno, Mariana Raykova, and Vinod Vaikuntanathan. How to delegate and verify in public: Veri-
+fiable computation from attribute-based encryption. In TCC, volume 7194 of Lecture Notes in Computer
+Science, pages 422–439. Springer, 2012.
+[Rab10] Tal Rabin, editor. Advances in Cryptology - CRYPTO 2010, 30th Annual Cryptology Conference, Santa
+Barbara, CA, USA, August 15-19, 2010. Proceedings, volume 6223 of Lecture Notes in Computer Science.
+Springer, 2010.
+[RAD78] R. Rivest, L. Adleman, and M. Dertouzos. On data banks and privacy homomorphisms. pages 169–177.
+Academic Press, 1978.
+[Rog11] Phillip Rogaway, editor. Advances in Cryptology - CRYPTO 2011 - 31st Annual Cryptology Conference,
+Santa Barbara, CA, USA, August 14-18, 2011. Proceedings, volume 6841 of Lecture Notes in Computer
+Science. Springer, 2011.
+[SV10] Nigel P. Smart and Frederik Vercauteren. Fully homomorphic encryption with relatively small key and
+ciphertext sizes. In Phong Q. Nguyen and David Pointcheval, editors, Public Key Cryptography, volume
+6056 of Lecture Notes in Computer Science, pages 420–443. Springer, 2010.
+[Tha13] Justin Thaler. Time-optimal interactive proofs for circuit evaluation. In CRYPTO, volume 8043 of
+Lecture Notes in Computer Science, pages 71–89. Springer, 2013.
+
